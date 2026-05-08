@@ -4,8 +4,10 @@
 #include <QCoreApplication>
 
 namespace Dso {
-Enum< Dso::TriggerMode, Dso::TriggerMode::ROLL, Dso::TriggerMode::SINGLE > TriggerModeEnum;
+Enum< Dso::TriggerMode, Dso::TriggerMode::ROLL, Dso::TriggerMode::PULSE > TriggerModeEnum;
 Enum< Dso::Slope, Dso::Slope::Positive, Dso::Slope::Both > SlopeEnum;
+Enum< Dso::PulsePolarity, Dso::PulsePolarity::Positive, Dso::PulsePolarity::Both > PulsePolarityEnum;
+Enum< Dso::PulseWidthCondition, Dso::PulseWidthCondition::Equal, Dso::PulseWidthCondition::Less > PulseWidthConditionEnum;
 Enum< Dso::GraphFormat, Dso::GraphFormat::TY, Dso::GraphFormat::XY > GraphFormatEnum;
 
 /// \brief Return string representation of the given graph format.
@@ -50,6 +52,8 @@ QString triggerModeString( TriggerMode mode ) {
         return QCoreApplication::tr( "Normal" );
     case TriggerMode::SINGLE:
         return QCoreApplication::tr( "Single" );
+    case TriggerMode::PULSE:
+        return QCoreApplication::tr( "Pulse" );
     }
     return QString();
 }
@@ -74,6 +78,38 @@ QString slopeString( Slope slope ) {
     case Slope::Both:
         return QString::fromUtf8( "\u2928" ); // "⤨"
 #endif
+    }
+    return QString();
+}
+
+
+/// \brief Return string representation of the given pulse polarity.
+/// \param polarity The ::PulsePolarity that should be returned as string.
+/// \return The string that should be used in labels etc.
+QString pulsePolarityString( PulsePolarity polarity ) {
+    switch ( polarity ) {
+    case PulsePolarity::Positive:
+        return QCoreApplication::tr( "Positive" );
+    case PulsePolarity::Negative:
+        return QCoreApplication::tr( "Negative" );
+    case PulsePolarity::Both:
+        return QCoreApplication::tr( "Both" );
+    }
+    return QString();
+}
+
+
+/// \brief Return string representation of the given pulse width condition.
+/// \param condition The ::PulseWidthCondition that should be returned as string.
+/// \return The string that should be used in labels etc.
+QString pulseWidthConditionString( PulseWidthCondition condition ) {
+    switch ( condition ) {
+    case PulseWidthCondition::Equal:
+        return QCoreApplication::tr( "Equal" );
+    case PulseWidthCondition::Greater:
+        return QCoreApplication::tr( "Greater than" );
+    case PulseWidthCondition::Less:
+        return QCoreApplication::tr( "Less than" );
     }
     return QString();
 }

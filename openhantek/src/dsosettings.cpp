@@ -113,6 +113,14 @@ void DsoSettings::load() {
         scope.trigger.source = storeSettings->value( "source" ).toUInt();
     if ( storeSettings->contains( "smooth" ) )
         scope.trigger.smooth = storeSettings->value( "smooth" ).toBool();
+    if ( storeSettings->contains( "pulseWidth" ) )
+        scope.trigger.pulseWidth = storeSettings->value( "pulseWidth" ).toDouble();
+    if ( storeSettings->contains( "pulseTolerancePercent" ) )
+        scope.trigger.pulseTolerancePercent = storeSettings->value( "pulseTolerancePercent" ).toDouble();
+    if ( storeSettings->contains( "pulsePolarity" ) )
+        scope.trigger.pulsePolarity = Dso::PulsePolarity( storeSettings->value( "pulsePolarity" ).toUInt() );
+    if ( storeSettings->contains( "pulseCondition" ) )
+        scope.trigger.pulseCondition = Dso::PulseWidthCondition( storeSettings->value( "pulseCondition" ).toUInt() );
     storeSettings->endGroup(); // trigger
     // Spectrum
     for ( ChannelID channel = 0; channel < scope.spectrum.size(); ++channel ) {
@@ -292,6 +300,10 @@ void DsoSettings::save() {
     storeSettings->setValue( "slope", unsigned( scope.trigger.slope ) );
     storeSettings->setValue( "source", scope.trigger.source );
     storeSettings->setValue( "smooth", scope.trigger.smooth );
+    storeSettings->setValue( "pulseWidth", scope.trigger.pulseWidth );
+    storeSettings->setValue( "pulseTolerancePercent", scope.trigger.pulseTolerancePercent );
+    storeSettings->setValue( "pulsePolarity", unsigned( scope.trigger.pulsePolarity ) );
+    storeSettings->setValue( "pulseCondition", unsigned( scope.trigger.pulseCondition ) );
     storeSettings->endGroup(); // trigger
     // Spectrum
     for ( ChannelID channel = 0; channel < scope.spectrum.size(); ++channel ) {

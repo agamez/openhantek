@@ -206,6 +206,14 @@ MainWindow::MainWindow( HantekDsoControl *dsoControl, DsoSettings *settings, Exp
     connect( triggerDock, &TriggerDock::sourceChanged, dsoWidget, &DsoWidget::updateTriggerSource );
     connect( triggerDock, &TriggerDock::slopeChanged, dsoControl, &HantekDsoControl::setTriggerSlope );
     connect( triggerDock, &TriggerDock::slopeChanged, dsoWidget, &DsoWidget::updateTriggerSlope );
+    connect( triggerDock, &TriggerDock::pulseWidthChanged, dsoControl, &HantekDsoControl::setPulseWidth );
+    connect( triggerDock, &TriggerDock::pulseWidthChanged, [this]() { dsoWidget->updateTriggerMode(); } );
+    connect( triggerDock, &TriggerDock::pulseToleranceChanged, dsoControl, &HantekDsoControl::setPulseTolerance );
+    connect( triggerDock, &TriggerDock::pulseToleranceChanged, [this]() { dsoWidget->updateTriggerMode(); } );
+    connect( triggerDock, &TriggerDock::pulsePolarityChanged, dsoControl, &HantekDsoControl::setPulsePolarity );
+    connect( triggerDock, &TriggerDock::pulsePolarityChanged, [this]() { dsoWidget->updateTriggerMode(); } );
+    connect( triggerDock, &TriggerDock::pulseConditionChanged, dsoControl, &HantekDsoControl::setPulseCondition );
+    connect( triggerDock, &TriggerDock::pulseConditionChanged, [this]() { dsoWidget->updateTriggerMode(); } );
     connect( dsoWidget, &DsoWidget::triggerPositionChanged, dsoControl, &HantekDsoControl::setTriggerOffset );
     connect( dsoWidget, &DsoWidget::triggerLevelChanged, dsoControl, &HantekDsoControl::setTriggerLevel );
 

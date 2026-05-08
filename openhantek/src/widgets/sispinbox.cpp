@@ -95,6 +95,10 @@ void SiSpinBox::stepBy( int doStep ) {
     if ( doStep == 0 || ( doStep < 0 && this->value() <= this->minimum() ) || ( doStep > 0 && this->value() >= this->maximum() ) ) {
         return;
     }
+    if ( mode < 0 ) { // fixed linear step, using QDoubleSpinBox::singleStep()
+        QDoubleSpinBox::stepBy( doStep );
+        return;
+    }
     int stepsCount = this->steps.size() - 1;
     if ( 0 == mode ) { // this is a regular 1/2/5.. spinbox
         double stepsSpan = this->steps.last() / this->steps.first();
@@ -163,8 +167,8 @@ void SiSpinBox::setUnitPostfix( const QString &postfix ) { this->unitPostfix = p
 void SiSpinBox::setSteps( const QList< double > &newSteps ) { this->steps = newSteps; }
 
 /// \brief Set the mode.
-/// \param mode The mode, the value 0 will have fixed interval, otherwise the
-/// value will have interval within steps itself.
+/// \param mode The mode, a negative value uses QDoubleSpinBox::singleStep(),
+/// 0 uses regular 1/2/5 intervals, otherwise the value uses the steps itself.
 void SiSpinBox::setMode( const int newMode ) { this->mode = newMode; }
 
 /// \brief Generic initializations.

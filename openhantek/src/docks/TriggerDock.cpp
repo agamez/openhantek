@@ -17,6 +17,8 @@
 #include "sispinbox.h"
 #include "utils/printutils.h"
 
+#include <algorithm>
+
 
 TriggerDock::TriggerDock( DsoSettingsScope *scope, const Dso::ControlSpecification *spec, QWidget *parent )
     : QDockWidget( tr( "Trigger" ), parent ), scope( scope ), mSpec( spec ) {
@@ -39,6 +41,31 @@ TriggerDock::TriggerDock( DsoSettingsScope *scope, const Dso::ControlSpecificati
     for ( Dso::Slope slope : Dso::SlopeEnum )
         slopeComboBox->addItem( Dso::slopeString( slope ) );
 
+    pulseWidthLabel = new QLabel( tr( "Width" ) );
+    pulseWidthSiSpinBox = new SiSpinBox( UNIT_SECONDS );
+    pulseWidthSiSpinBox->setMinimum( 1e-9 );
+    pulseWidthSiSpinBox->setMaximum( 10.0 );
+    pulseWidthSiSpinBox->setSingleStep( 1e-6 );
+    pulseWidthSiSpinBox->setMode( -1 );
+
+    pulseConditionLabel = new QLabel( tr( "Condition" ) );
+    pulseConditionComboBox = new QComboBox();
+    for ( Dso::PulseWidthCondition condition : Dso::PulseWidthConditionEnum )
+        pulseConditionComboBox->addItem( Dso::pulseWidthConditionString( condition ) );
+
+    pulsePolarityLabel = new QLabel( tr( "Polarity" ) );
+    pulsePolarityComboBox = new QComboBox();
+    for ( Dso::PulsePolarity polarity : Dso::PulsePolarityEnum )
+        pulsePolarityComboBox->addItem( Dso::pulsePolarityString( polarity ) );
+
+    pulseToleranceLabel = new QLabel( tr( "Tolerance" ) );
+    pulseToleranceSpinBox = new QDoubleSpinBox();
+    pulseToleranceSpinBox->setMinimum( 0.0 );
+    pulseToleranceSpinBox->setMaximum( 100.0 );
+    pulseToleranceSpinBox->setDecimals( 1 );
+    pulseToleranceSpinBox->setSingleStep( 1.0 );
+    pulseToleranceSpinBox->setSuffix( tr( " %" ) );
+
     sourceLabel = new QLabel( tr( "Source" ) );
     sourceComboBox = new QComboBox();
     sourceComboBox->addItems( sourceStandardStrings );
@@ -53,6 +80,14 @@ TriggerDock::TriggerDock( DsoSettingsScope *scope, const Dso::ControlSpecificati
     dockLayout->addWidget( sourceComboBox, 1, 1 );
     dockLayout->addWidget( slopeLabel, 2, 0 );
     dockLayout->addWidget( slopeComboBox, 2, 1 );
+    dockLayout->addWidget( pulseWidthLabel, 3, 0 );
+    dockLayout->addWidget( pulseWidthSiSpinBox, 3, 1 );
+    dockLayout->addWidget( pulseConditionLabel, 4, 0 );
+    dockLayout->addWidget( pulseConditionComboBox, 4, 1 );
+    dockLayout->addWidget( pulsePolarityLabel, 5, 0 );
+    dockLayout->addWidget( pulsePolarityComboBox, 5, 1 );
+    dockLayout->addWidget( pulseToleranceLabel, 6, 0 );
+    dockLayout->addWidget( pulseToleranceSpinBox, 6, 1 );
 
     dockWidget = new QWidget();
     SetupDockWidget( this, dockWidget, dockLayout );
@@ -63,6 +98,7 @@ TriggerDock::TriggerDock( DsoSettingsScope *scope, const Dso::ControlSpecificati
     // Connect signals and slots
     connect( modeComboBox, static_cast< void ( QComboBox::* )( int ) >( &QComboBox::currentIndexChanged ), [this]( int index ) {
         this->scope->trigger.mode = mSpec->triggerModes[ unsigned( index ) ];
+        updatePulseControls();
         emit modeChanged( this->scope->trigger.mode );
     } );
     connect( slopeComboBox, static_cast< void ( QComboBox::* )( int ) >( &QComboBox::currentIndexChanged ), [this]( int index ) {
@@ -76,6 +112,27 @@ TriggerDock::TriggerDock( DsoSettingsScope *scope, const Dso::ControlSpecificati
                  this->scope->trigger.source = index & ( mSpec->channels - 1 );
                  emit sourceChanged( index & ( mSpec->channels - 1 ), smooth );
              } );
+    connect( pulseWidthSiSpinBox, static_cast< void ( QDoubleSpinBox::* )( double ) >( &QDoubleSpinBox::valueChanged ),
+             [this]( double width ) {
+                 this->scope->trigger.pulseWidth = width;
+                 emit pulseWidthChanged( width );
+             } );
+    connect( pulseConditionComboBox, static_cast< void ( QComboBox::* )( int ) >( &QComboBox::currentIndexChanged ),
+             [this]( int index ) {
+                 this->scope->trigger.pulseCondition = Dso::PulseWidthCondition( index );
+                 updatePulseControls();
+                 emit pulseConditionChanged( this->scope->trigger.pulseCondition );
+             } );
+    connect( pulsePolarityComboBox, static_cast< void ( QComboBox::* )( int ) >( &QComboBox::currentIndexChanged ),
+             [this]( int index ) {
+                 this->scope->trigger.pulsePolarity = Dso::PulsePolarity( index );
+                 emit pulsePolarityChanged( this->scope->trigger.pulsePolarity );
+             } );
+    connect( pulseToleranceSpinBox, static_cast< void ( QDoubleSpinBox::* )( double ) >( &QDoubleSpinBox::valueChanged ),
+             [this]( double percent ) {
+                 this->scope->trigger.pulseTolerancePercent = percent;
+                 emit pulseToleranceChanged( percent );
+             } );
 }
 
 void TriggerDock::loadSettings( DsoSettingsScope *scope ) {
@@ -83,6 +140,11 @@ void TriggerDock::loadSettings( DsoSettingsScope *scope ) {
     setMode( scope->trigger.mode );
     setSlope( scope->trigger.slope );
     setSource( int( scope->trigger.source ), scope->trigger.smooth );
+    setPulseWidth( scope->trigger.pulseWidth );
+    setPulseCondition( scope->trigger.pulseCondition );
+    setPulsePolarity( scope->trigger.pulsePolarity );
+    setPulseTolerance( scope->trigger.pulseTolerancePercent );
+    updatePulseControls();
 }
 
 /// \brief Don't close the dock, just hide it
@@ -97,6 +159,7 @@ void TriggerDock::setMode( Dso::TriggerMode mode ) {
     int index = int( std::find( mSpec->triggerModes.begin(), mSpec->triggerModes.end(), mode ) - mSpec->triggerModes.begin() );
     QSignalBlocker blocker( modeComboBox );
     modeComboBox->setCurrentIndex( index );
+    updatePulseControls();
     emit modeChanged( this->scope->trigger.mode );
 }
 
@@ -112,4 +175,40 @@ void TriggerDock::setSource( int id, bool smooth ) {
         return;
     QSignalBlocker blocker( sourceComboBox );
     sourceComboBox->setCurrentIndex( id );
+}
+
+void TriggerDock::setPulseWidth( double width ) {
+    QSignalBlocker blocker( pulseWidthSiSpinBox );
+    pulseWidthSiSpinBox->setValue( width );
+}
+
+void TriggerDock::setPulsePolarity( Dso::PulsePolarity polarity ) {
+    QSignalBlocker blocker( pulsePolarityComboBox );
+    pulsePolarityComboBox->setCurrentIndex( int( polarity ) );
+}
+
+void TriggerDock::setPulseCondition( Dso::PulseWidthCondition condition ) {
+    QSignalBlocker blocker( pulseConditionComboBox );
+    pulseConditionComboBox->setCurrentIndex( int( condition ) );
+    updatePulseControls();
+}
+
+void TriggerDock::setPulseTolerance( double percent ) {
+    QSignalBlocker blocker( pulseToleranceSpinBox );
+    pulseToleranceSpinBox->setValue( percent );
+}
+
+void TriggerDock::updatePulseControls() {
+    const bool pulseMode = scope->trigger.mode == Dso::TriggerMode::PULSE;
+    const bool showTolerance = pulseMode && scope->trigger.pulseCondition == Dso::PulseWidthCondition::Equal;
+    slopeLabel->setVisible( !pulseMode );
+    slopeComboBox->setVisible( !pulseMode );
+    pulseWidthLabel->setVisible( pulseMode );
+    pulseWidthSiSpinBox->setVisible( pulseMode );
+    pulseConditionLabel->setVisible( pulseMode );
+    pulseConditionComboBox->setVisible( pulseMode );
+    pulsePolarityLabel->setVisible( pulseMode );
+    pulsePolarityComboBox->setVisible( pulseMode );
+    pulseToleranceLabel->setVisible( showTolerance );
+    pulseToleranceSpinBox->setVisible( showTolerance );
 }

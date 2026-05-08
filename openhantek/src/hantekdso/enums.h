@@ -36,9 +36,10 @@ enum class TriggerMode {
     ROLL,   ///< Free running without any trigger
     AUTO,   ///< Automatic without trigger event
     NORMAL, ///< Normal hardware trigger (or software trigger) mode
-    SINGLE  ///< Stop after the first trigger event
+    SINGLE, ///< Stop after the first trigger event
+    PULSE   ///< Trigger on a pulse with the configured width
 };          // <class T, T first, T last>
-extern Enum< Dso::TriggerMode, Dso::TriggerMode::ROLL, Dso::TriggerMode::SINGLE > TriggerModeEnum;
+extern Enum< Dso::TriggerMode, Dso::TriggerMode::ROLL, Dso::TriggerMode::PULSE > TriggerModeEnum;
 
 /// \enum Slope
 /// \brief The slope that causes a trigger.
@@ -48,6 +49,24 @@ enum class Slope : uint8_t {
     Both = 2      ///< At 1st level crossing up or down
 };
 extern Enum< Dso::Slope, Dso::Slope::Positive, Dso::Slope::Both > SlopeEnum;
+
+/// \enum PulsePolarity
+/// \brief The pulse polarity used by pulse-width triggering.
+enum class PulsePolarity {
+    Positive, ///< High-going pulse
+    Negative, ///< Low-going pulse
+    Both      ///< Positive or negative pulse
+};
+extern Enum< Dso::PulsePolarity, Dso::PulsePolarity::Positive, Dso::PulsePolarity::Both > PulsePolarityEnum;
+
+/// \enum PulseWidthCondition
+/// \brief How the measured pulse width is compared to the configured width.
+enum class PulseWidthCondition {
+    Equal,   ///< Within configured tolerance
+    Greater, ///< Longer than or equal to the configured width
+    Less     ///< Shorter than or equal to the configured width
+};
+extern Enum< Dso::PulseWidthCondition, Dso::PulseWidthCondition::Equal, Dso::PulseWidthCondition::Less > PulseWidthConditionEnum;
 
 /// \enum InterpolationMode
 /// \brief The different interpolation modes for the graphs.
@@ -62,11 +81,15 @@ QString graphFormatString( GraphFormat format );
 QString couplingString( Coupling coupling );
 QString triggerModeString( TriggerMode mode );
 QString slopeString( Slope slope );
+QString pulsePolarityString( PulsePolarity polarity );
+QString pulseWidthConditionString( PulseWidthCondition condition );
 // QString interpolationModeString(InterpolationMode interpolation);
 } // namespace Dso
 
 Q_DECLARE_METATYPE( Dso::TriggerMode )
 Q_DECLARE_METATYPE( Dso::Slope )
+Q_DECLARE_METATYPE( Dso::PulsePolarity )
+Q_DECLARE_METATYPE( Dso::PulseWidthCondition )
 Q_DECLARE_METATYPE( Dso::Coupling )
 Q_DECLARE_METATYPE( Dso::GraphFormat )
 Q_DECLARE_METATYPE( Dso::ChannelMode )

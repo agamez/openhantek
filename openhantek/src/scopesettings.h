@@ -46,6 +46,10 @@ struct DsoSettingsScopeTrigger {
     Dso::Slope slope = Dso::Slope::Positive;        ///< Rising or falling edge causes trigger
     unsigned int source = 0;                        ///< Channel that is used as trigger source
     bool smooth = false;                            ///< Don't trigger on glitches
+    double pulseWidth = 1e-3;                       ///< Pulse trigger width in s
+    double pulseTolerancePercent = 10.0;            ///< Equal pulse trigger tolerance
+    Dso::PulsePolarity pulsePolarity = Dso::PulsePolarity::Both;
+    Dso::PulseWidthCondition pulseCondition = Dso::PulseWidthCondition::Equal;
 };
 
 /// \brief Base for DsoSettingsScopeSpectrum and DsoSettingsScopeVoltage

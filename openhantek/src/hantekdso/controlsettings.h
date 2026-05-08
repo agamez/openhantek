@@ -38,6 +38,10 @@ struct ControlSettingsTrigger {
     Dso::Slope slope = Dso::Slope::Positive;        ///< The trigger slope
     unsigned int source = 0;                        ///< The trigger source
     bool smooth = false;                            ///< Don't trigger on glitches
+    double pulseWidth = 1e-3;                       ///< Pulse trigger width in s
+    double pulseTolerancePercent = 10.0;            ///< Equal pulse trigger tolerance
+    Dso::PulsePolarity pulsePolarity = Dso::PulsePolarity::Both;
+    Dso::PulseWidthCondition pulseCondition = Dso::PulseWidthCondition::Equal;
 };
 
 /// \brief Stores the current amplification settings of the device.

@@ -26,6 +26,8 @@ void SetupDockWidget( QDockWidget *dockWindow, QWidget *dockWidget, QLayout *lay
 
 void registerDockMetaTypes() {
     qRegisterMetaType< Dso::TriggerMode >();
+    qRegisterMetaType< Dso::PulsePolarity >();
+    qRegisterMetaType< Dso::PulseWidthCondition >();
     qRegisterMetaType< Dso::MathMode >();
     qRegisterMetaType< Dso::Slope >();
     qRegisterMetaType< Dso::Coupling >();

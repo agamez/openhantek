@@ -141,6 +141,7 @@ static void initSpecifications( Dso::ControlSpecification &specification ) {
         Dso::TriggerMode::AUTO,
         Dso::TriggerMode::NORMAL,
         Dso::TriggerMode::SINGLE,
+        Dso::TriggerMode::PULSE,
     };
     specification.fixedUSBinLength = 0;
     // use calibration frequency steps of modified sigrok FW (<= 20 kHz)

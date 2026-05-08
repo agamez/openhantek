@@ -161,6 +161,10 @@ class HantekDsoControl : public QObject {
 
     unsigned searchTriggerPoint( Dso::Slope dsoSlope, unsigned int startPos = 0 );
 
+    bool pulseWidthMatches( double width ) const;
+
+    unsigned searchPulseTriggerPoint( Dso::Slope leadingSlope, double &pulseWidth1, double &pulseWidth2 );
+
     Dso::Slope mirrorSlope( Dso::Slope slope ) {
         return ( slope == Dso::Slope::Positive ? Dso::Slope::Negative : Dso::Slope::Positive );
     }
@@ -286,6 +290,22 @@ class HantekDsoControl : public QObject {
     /// \param slope The Slope that should cause a trigger.
     /// \return See ::Dso::ErrorCode.
     Dso::ErrorCode setTriggerSlope( Dso::Slope slope );
+
+    /// \brief Set the pulse trigger width in seconds.
+    /// \return See ::Dso::ErrorCode.
+    Dso::ErrorCode setPulseWidth( double width );
+
+    /// \brief Set the equal pulse trigger tolerance in percent.
+    /// \return See ::Dso::ErrorCode.
+    Dso::ErrorCode setPulseTolerance( double percent );
+
+    /// \brief Set the pulse trigger polarity.
+    /// \return See ::Dso::ErrorCode.
+    Dso::ErrorCode setPulsePolarity( Dso::PulsePolarity polarity );
+
+    /// \brief Set the pulse width comparison condition.
+    /// \return See ::Dso::ErrorCode.
+    Dso::ErrorCode setPulseCondition( Dso::PulseWidthCondition condition );
 
     /// \brief Set the trigger position.
     /// \param position The new trigger position (in s).

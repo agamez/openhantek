@@ -3,6 +3,7 @@
 // #define TIMESTAMPDEBUG
 
 #include <assert.h>
+#include <algorithm>
 #include <cmath>
 #include <limits>
 #include <stdexcept>
@@ -332,6 +333,42 @@ Dso::ErrorCode HantekDsoControl::setTriggerSlope( Dso::Slope slope ) {
 }
 
 
+Dso::ErrorCode HantekDsoControl::setPulseWidth( double width ) {
+    if ( deviceNotConnected() )
+        return Dso::ErrorCode::CONNECTION;
+    controlsettings.trigger.pulseWidth = qBound( 1e-9, width, 10.0 );
+    newTriggerParam = true;
+    return Dso::ErrorCode::NONE;
+}
+
+
+Dso::ErrorCode HantekDsoControl::setPulseTolerance( double percent ) {
+    if ( deviceNotConnected() )
+        return Dso::ErrorCode::CONNECTION;
+    controlsettings.trigger.pulseTolerancePercent = qBound( 0.0, percent, 100.0 );
+    newTriggerParam = true;
+    return Dso::ErrorCode::NONE;
+}
+
+
+Dso::ErrorCode HantekDsoControl::setPulsePolarity( Dso::PulsePolarity polarity ) {
+    if ( deviceNotConnected() )
+        return Dso::ErrorCode::CONNECTION;
+    controlsettings.trigger.pulsePolarity = polarity;
+    newTriggerParam = true;
+    return Dso::ErrorCode::NONE;
+}
+
+
+Dso::ErrorCode HantekDsoControl::setPulseCondition( Dso::PulseWidthCondition condition ) {
+    if ( deviceNotConnected() )
+        return Dso::ErrorCode::CONNECTION;
+    controlsettings.trigger.pulseCondition = condition;
+    newTriggerParam = true;
+    return Dso::ErrorCode::NONE;
+}
+
+
 // set trigger position (0.0 - 1.0)
 Dso::ErrorCode HantekDsoControl::setTriggerOffset( double position ) {
     if ( deviceNotConnected() )
@@ -362,6 +399,10 @@ void HantekDsoControl::applySettings( DsoSettingsScope *dsoSettingsScope ) {
     setTriggerOffset( dsoSettingsScope->trigger.offset );
     setTriggerSlope( dsoSettingsScope->trigger.slope );
     setTriggerSource( dsoSettingsScope->trigger.source, dsoSettingsScope->trigger.smooth );
+    setPulseWidth( dsoSettingsScope->trigger.pulseWidth );
+    setPulseTolerance( dsoSettingsScope->trigger.pulseTolerancePercent );
+    setPulsePolarity( dsoSettingsScope->trigger.pulsePolarity );
+    setPulseCondition( dsoSettingsScope->trigger.pulseCondition );
 }
 
 
@@ -579,6 +620,57 @@ unsigned HantekDsoControl::searchTriggerPoint( Dso::Slope dsoSlope, unsigned int
 }
 
 
+bool HantekDsoControl::pulseWidthMatches( double width ) const {
+    if ( width <= 0.0 )
+        return false;
+
+    const double target = controlsettings.trigger.pulseWidth;
+    switch ( controlsettings.trigger.pulseCondition ) {
+    case Dso::PulseWidthCondition::Equal: {
+        if ( result.samplerate <= 0.0 )
+            return false;
+        const double samplePeriod = 1.0 / result.samplerate;
+        const double tolerance = qMax( target * controlsettings.trigger.pulseTolerancePercent / 100.0, samplePeriod );
+        return std::fabs( width - target ) <= tolerance;
+    }
+    case Dso::PulseWidthCondition::Greater:
+        return width >= target;
+    case Dso::PulseWidthCondition::Less:
+        return width <= target;
+    }
+    return false;
+}
+
+
+unsigned HantekDsoControl::searchPulseTriggerPoint( Dso::Slope leadingSlope, double &pulseWidth1, double &pulseWidth2 ) {
+    pulseWidth1 = 0.0;
+    pulseWidth2 = 0.0;
+    if ( result.samplerate <= 0.0 )
+        return 0;
+
+    unsigned startPos = 0;
+    while ( true ) {
+        unsigned slopePos1 = searchTriggerPoint( leadingSlope, startPos );
+        if ( !slopePos1 )
+            return 0;
+
+        unsigned slopePos2 = searchTriggerPoint( mirrorSlope( leadingSlope ), slopePos1 );
+        if ( !slopePos2 )
+            return 0;
+
+        double width = ( slopePos2 - slopePos1 ) / result.samplerate;
+        if ( pulseWidthMatches( width ) ) {
+            pulseWidth1 = width;
+            if ( unsigned slopePos3 = searchTriggerPoint( leadingSlope, slopePos2 ) )
+                pulseWidth2 = ( slopePos3 - slopePos2 ) / result.samplerate;
+            return slopePos1;
+        }
+
+        startPos = slopePos1 + 1;
+    }
+}
+
+
 unsigned HantekDsoControl::searchTriggeredPosition() {
     static Dso::Slope nextSlope = Dso::Slope::Positive; // for alternating slope mode X
     ChannelID channel = controlsettings.trigger.source;
@@ -599,7 +691,33 @@ unsigned HantekDsoControl::searchTriggeredPosition() {
         return result.triggeredPosition = 0;
     // search for trigger point in a range that leaves enough samples left and right of trigger for display
     // find also the alternate slope after trigger point -> calculate pulse width.
-    if ( controlsettings.trigger.slope != Dso::Slope::Both ) {
+    if ( controlsettings.trigger.mode == Dso::TriggerMode::PULSE ) {
+        unsigned positivePosition = 0;
+        unsigned negativePosition = 0;
+        double positivePulseWidth1 = 0.0;
+        double positivePulseWidth2 = 0.0;
+        double negativePulseWidth1 = 0.0;
+        double negativePulseWidth2 = 0.0;
+
+        if ( controlsettings.trigger.pulsePolarity == Dso::PulsePolarity::Positive ||
+             controlsettings.trigger.pulsePolarity == Dso::PulsePolarity::Both )
+            positivePosition =
+                searchPulseTriggerPoint( Dso::Slope::Positive, positivePulseWidth1, positivePulseWidth2 );
+        if ( controlsettings.trigger.pulsePolarity == Dso::PulsePolarity::Negative ||
+             controlsettings.trigger.pulsePolarity == Dso::PulsePolarity::Both )
+            negativePosition =
+                searchPulseTriggerPoint( Dso::Slope::Negative, negativePulseWidth1, negativePulseWidth2 );
+
+        if ( positivePosition && ( !negativePosition || positivePosition <= negativePosition ) ) {
+            triggeredPositionRaw = positivePosition;
+            pulseWidth1 = positivePulseWidth1;
+            pulseWidth2 = positivePulseWidth2;
+        } else if ( negativePosition ) {
+            triggeredPositionRaw = negativePosition;
+            pulseWidth1 = negativePulseWidth1;
+            pulseWidth2 = negativePulseWidth2;
+        }
+    } else if ( controlsettings.trigger.slope != Dso::Slope::Both ) {
         triggeredPositionRaw = searchTriggerPoint( nextSlope = controlsettings.trigger.slope );
         if ( triggeredPositionRaw ) { // triggered -> search also following other slope (calculate pulse width)
             if ( unsigned int slopePos2 = searchTriggerPoint( mirrorSlope( nextSlope ), triggeredPositionRaw ) ) {
@@ -640,18 +758,25 @@ bool HantekDsoControl::provideTriggeredData() {
         triggeredResult.samplerate = result.samplerate;
         triggeredResult.clipped = result.clipped;
         triggeredResult.triggeredPosition = result.triggeredPosition;
+        triggeredResult.pulseWidth1 = result.pulseWidth1;
+        triggeredResult.pulseWidth2 = result.pulseWidth2;
         result.liveTrigger = true;
-    } else if ( controlsettings.trigger.mode == Dso::TriggerMode::NORMAL ) { // Not triggered in NORMAL mode
+    } else if ( controlsettings.trigger.mode == Dso::TriggerMode::NORMAL ||
+                controlsettings.trigger.mode == Dso::TriggerMode::PULSE ) { // Not triggered in triggered modes
         // Use saved trace (even if it is empty)
         result.data = triggeredResult.data;
         result.samplerate = triggeredResult.samplerate;
         result.clipped = triggeredResult.clipped;
         result.triggeredPosition = triggeredResult.triggeredPosition;
+        result.pulseWidth1 = triggeredResult.pulseWidth1;
+        result.pulseWidth2 = triggeredResult.pulseWidth2;
         result.liveTrigger = false; // show red "TR" top left
-    } else {                        // Not triggered and not NORMAL mode
+    } else {                        // Not triggered and not a retaining trigger mode
         // Use the free running trace, discard history
         triggeredResult.data.clear();          // discard trace
         triggeredResult.triggeredPosition = 0; // not triggered
+        triggeredResult.pulseWidth1 = 0;
+        triggeredResult.pulseWidth2 = 0;
         result.liveTrigger = false;            // show red "TR" top left
     }
     return result.liveTrigger;
@@ -713,7 +838,8 @@ void HantekDsoControl::stateMachine() {
     // skip an even number of frames when slope == Dso::Slope::Both
     if ( ( triggered && !lastTriggered )                                 // show new data immediately
          || ( ( delayDisplay >= displayInterval )                        // or wait some time ...
-              && ( ( controlsettings.trigger.slope != Dso::Slope::Both ) // ... for ↗ or ↘ slope
+              && ( ( controlsettings.trigger.mode == Dso::TriggerMode::PULSE ) // ... for pulse mode
+                   || ( controlsettings.trigger.slope != Dso::Slope::Both )    // ... or ↗ / ↘ slope
                    || skipEven ) ) ) {                                   // and drop even no. of frames
         skipEven = true;                                                 // zero frames -> even
         delayDisplay = 0;

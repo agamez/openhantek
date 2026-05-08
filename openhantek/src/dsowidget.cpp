@@ -625,7 +625,16 @@ void DsoWidget::updateTriggerDetails() {
         int dutyCyle = int( 0.5 + ( 100.0 * pulseWidth1 ) / ( pulseWidth1 + pulseWidth2 ) );
         pulseWidthString += " (" + QString::number( dutyCyle ) + "%)";
     }
-    if ( scope->trigger.mode != Dso::TriggerMode::ROLL ) {
+    if ( scope->trigger.mode == Dso::TriggerMode::PULSE ) {
+        QString pulseSettingString = Dso::pulsePolarityString( scope->trigger.pulsePolarity ) + " " +
+                                     Dso::pulseWidthConditionString( scope->trigger.pulseCondition ) + " " +
+                                     valueToString( scope->trigger.pulseWidth, UNIT_SECONDS, 3 );
+        if ( scope->trigger.pulseCondition == Dso::PulseWidthCondition::Equal )
+            pulseSettingString += tr( " +/- %L1%" ).arg( scope->trigger.pulseTolerancePercent, 0, 'f', 1 );
+        settingsTriggerLabel->setText( tr( "%1  Pulse  %2  %3  %4  %5" )
+                                           .arg( scope->voltage[ scope->trigger.source ].name, levelString,
+                                                 pretriggerString, pulseSettingString, pulseWidthString ) );
+    } else if ( scope->trigger.mode != Dso::TriggerMode::ROLL ) {
         settingsTriggerLabel->setText( tr( "%1  %2  %3  %4  %5" )
                                            .arg( scope->voltage[ scope->trigger.source ].name,
                                                  Dso::slopeString( scope->trigger.slope ), levelString, pretriggerString,
