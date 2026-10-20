@@ -15,14 +15,17 @@
 #include "utils/printutils.h"
 
 
+static const int maximumAverages = 1024; ///< Maximum selectable moving-average count
+
 template < typename... Args > struct SELECT {
     template < typename C, typename R > static constexpr auto OVERLOAD_OF( R ( C::*pmf )( Args... ) ) -> decltype( pmf ) {
         return pmf;
     }
 };
 
-VoltageDock::VoltageDock( DsoSettingsScope *scope, const Dso::ControlSpecification *spec, QWidget *parent )
-    : QDockWidget( tr( "Voltage" ), parent ), scope( scope ), spec( spec ) {
+VoltageDock::VoltageDock( DsoSettingsScope *scope, DsoSettingsPostProcessing *postprocessing,
+                          const Dso::ControlSpecification *spec, QWidget *parent )
+    : QDockWidget( tr( "Voltage" ), parent ), scope( scope ), postprocessing( postprocessing ), spec( spec ) {
     // Initialize lists for comboboxes
     for ( Dso::Coupling c : spec->couplings )
         if ( c == Dso::Coupling::DC || scope->hasACcoupling || scope->hasACmodification )
@@ -115,6 +118,24 @@ VoltageDock::VoltageDock( DsoSettingsScope *scope, const Dso::ControlSpecificati
         } );
     }
 
+    // Moving average setting for all signals
+    QFrame *divider = new QFrame();
+    divider->setLineWidth( 1 );
+    divider->setFrameShape( QFrame::HLine );
+    dockLayout->addWidget( divider, row++, 0, 1, 3 );
+
+    averageSpinBox = new QSpinBox();
+    averageSpinBox->setMinimum( 1 );
+    averageSpinBox->setMaximum( maximumAverages );
+    averageSpinBox->setSuffix( tr( " frames" ) );
+    averageSpinBox->setSpecialValueText( tr( "off" ) );
+    averageSpinBox->setToolTip( tr( "Continuous moving average over triggered acquisitions (1 = off)" ) );
+    dockLayout->addWidget( new QLabel( tr( "Average" ) ), row, 0 );
+    dockLayout->addWidget( averageSpinBox, row++, 1, 1, 2 );
+    connect( averageSpinBox, SELECT< int >::OVERLOAD_OF( &QSpinBox::valueChanged ), [this]( int count ) {
+        this->postprocessing->averageCount = unsigned( count );
+    } );
+
     // Load settings into GUI
     this->loadSettings( scope, spec );
 
@@ -136,6 +157,10 @@ void VoltageDock::loadSettings( DsoSettingsScope *scope, const Dso::ControlSpeci
         setAttn( channel, scope->voltage[ channel ].probeAttn );
         setInverted( channel, scope->voltage[ channel ].inverted );
     }
+
+    postprocessing->averageCount = qBound( 1u, postprocessing->averageCount, unsigned( maximumAverages ) );
+    QSignalBlocker blocker( averageSpinBox );
+    averageSpinBox->setValue( int( postprocessing->averageCount ) );
 }
 
 /// \brief Don't close the dock, just hide it

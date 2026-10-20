@@ -202,6 +202,8 @@ void DsoSettings::load() {
         post.spectrumReference = storeSettings->value( "spectrumReference" ).toDouble();
     if ( storeSettings->contains( "spectrumWindow" ) )
         post.spectrumWindow = Dso::WindowFunction( storeSettings->value( "spectrumWindow" ).toInt() );
+    if ( storeSettings->contains( "averageCount" ) )
+        post.averageCount = storeSettings->value( "averageCount" ).toUInt();
     storeSettings->endGroup(); // scope
 
     // View
@@ -351,6 +353,7 @@ void DsoSettings::save() {
     storeSettings->setValue( "spectrumLimit", post.spectrumLimit );
     storeSettings->setValue( "spectrumReference", post.spectrumReference );
     storeSettings->setValue( "spectrumWindow", unsigned( post.spectrumWindow ) );
+    storeSettings->setValue( "averageCount", post.averageCount );
     storeSettings->endGroup(); // scope
 
     // View

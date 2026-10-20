@@ -27,9 +27,11 @@ class VoltageDock : public QDockWidget {
   public:
     /// \brief Initializes the vertical axis docking window.
     /// \param settings The target settings object.
+    /// \param postprocessing The post processing settings.
     /// \param parent The parent widget.
     /// \param flags Flags for the window manager.
-    VoltageDock( DsoSettingsScope *scope, const Dso::ControlSpecification *spec, QWidget *parent );
+    VoltageDock( DsoSettingsScope *scope, DsoSettingsPostProcessing *postprocessing, const Dso::ControlSpecification *spec,
+                 QWidget *parent );
 
     /// \brief Sets the coupling for a channel.
     /// \param channel The channel, whose coupling should be set.
@@ -82,8 +84,11 @@ class VoltageDock : public QDockWidget {
 
     std::vector< ChannelBlock > channelBlocks;
 
-    DsoSettingsScope *scope; ///< The settings provided by the parent class
+    DsoSettingsScope *scope;                   ///< The settings provided by the parent class
+    DsoSettingsPostProcessing *postprocessing; ///< The post processing settings
     const Dso::ControlSpecification *spec;
+
+    QSpinBox *averageSpinBox; ///< Selects the number of acquisitions for the moving average
 
     QStringList couplingStrings; ///< The strings for the couplings
     QStringList modeStrings;     ///< The strings for the math mode

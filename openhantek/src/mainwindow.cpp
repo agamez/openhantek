@@ -130,7 +130,7 @@ MainWindow::MainWindow( HantekDsoControl *dsoControl, DsoSettings *settings, Exp
     // Docking windows
     // Create dock windows before the dso widget, they fix messed up settings
 
-    VoltageDock *voltageDock = new VoltageDock( scope, spec, this );
+    VoltageDock *voltageDock = new VoltageDock( scope, &dsoSettings->post, spec, this );
     HorizontalDock *horizontalDock = new HorizontalDock( scope, spec, this );
     TriggerDock *triggerDock = new TriggerDock( scope, spec, this );
     SpectrumDock *spectrumDock = new SpectrumDock( scope, this );

@@ -47,4 +47,5 @@ struct DsoSettingsPostProcessing {
     Dso::WindowFunction spectrumWindow = Dso::WindowFunction::HAMMING; ///< Window function for DFT
     double spectrumReference = 0.0;                                    ///< Reference level for spectrum in dBu
     double spectrumLimit = -60.0;                                      ///< Minimum magnitude of the spectrum (Avoids peaks)
+    unsigned averageCount = 1;                                         ///< Moving-average acquisition count (1 = off)
 };

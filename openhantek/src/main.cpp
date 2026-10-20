@@ -36,6 +36,7 @@
 #include "usb/scopedevice.h"
 
 // Post processing
+#include "post/averageprocessor.h"
 #include "post/graphgenerator.h"
 #include "post/mathchannelgenerator.h"
 #include "post/postprocessing.h"
@@ -241,12 +242,14 @@ int main( int argc, char *argv[] ) {
     postProcessingThread.setObjectName( "postProcessingThread" );
     PostProcessing postProcessing( settings.scope.countChannels() );
 
+    AverageProcessor averageProcessor( &settings.post, &settings.scope );
     SpectrumGenerator spectrumGenerator( &settings.scope, &settings.post );
     MathChannelGenerator mathchannelGenerator( &settings.scope, spec->channels );
     GraphGenerator graphGenerator( &settings.scope );
 
     postProcessing.registerProcessor( &samplesToExportRaw );
     postProcessing.registerProcessor( &mathchannelGenerator );
+    postProcessing.registerProcessor( &averageProcessor );
     postProcessing.registerProcessor( &spectrumGenerator );
     postProcessing.registerProcessor( &graphGenerator );
 
