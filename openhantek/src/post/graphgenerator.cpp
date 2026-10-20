@@ -7,6 +7,7 @@
 
 #include "graphgenerator.h"
 #include "hantekdso/controlspecification.h"
+#include "postprocessingsettings.h"
 #include "ppresult.h"
 #include "scopesettings.h"
 #include "utils/printutils.h"
@@ -30,8 +31,8 @@ static const SampleValues &useVoltSamplesOf( ChannelID channel, const PPresult *
 }
 
 
-GraphGenerator::GraphGenerator( const DsoSettingsScope *scope /*, const DsoSettingsView *view */ )
-    : scope( scope ) /*, view(view) */ {
+GraphGenerator::GraphGenerator( const DsoSettingsScope *scope, const DsoSettingsPostProcessing *postprocessing )
+    : scope( scope ), postprocessing( postprocessing ) {
     // printf( "GraphGenerator::GraphGenerator()\n" );
 }
 
@@ -157,10 +158,14 @@ void GraphGenerator::generateGraphsTYspectrum( PPresult *result ) {
         std::vector< double >::const_iterator dataIterator = samples.sample.begin();
         const double magnitude = scope->spectrum[ channel ].magnitude;
         const double offset = scope->spectrum[ channel ].offset;
+        // The limit is the lowest value shown in the spectrum. Place it on the channel's
+        // offset marker so the spectrum grows upwards from the marker instead of being
+        // split symmetrically around 0 dB.
+        const double baseline = postprocessing->spectrumLimit - postprocessing->spectrumReference;
 
         for ( unsigned int position = 0; position < sampleCount; ++position ) {
             graphSpectrum.push_back( QVector3D( float( position * horizontalFactor - DIVS_TIME / 2 ),
-                                                float( *( dataIterator++ ) / magnitude + offset ), 0.0f ) );
+                                                float( ( *( dataIterator++ ) - baseline ) / magnitude + offset ), 0.0f ) );
         }
     }
 }

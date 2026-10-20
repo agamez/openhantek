@@ -1766,12 +1766,22 @@
 <context>
     <name>SpectrumDock</name>
     <message>
-        <location filename="../src/docks/SpectrumDock.cpp" line="28"/>
+        <location filename="../src/docks/SpectrumDock.cpp" line="29"/>
         <source>Spectrum</source>
         <translation>Spektrum</translation>
     </message>
     <message>
-        <location filename="../src/docks/SpectrumDock.cpp" line="73"/>
+        <location filename="../src/docks/SpectrumDock.cpp" line="74"/>
+        <source>Max hold</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/docks/SpectrumDock.cpp" line="75"/>
+        <source>Keep the maximum magnitude of each frequency bin</source>
+        <translation type="unfinished"></translation>
+    </message>
+    <message>
+        <location filename="../src/docks/SpectrumDock.cpp" line="80"/>
         <source>Frequencybase</source>
         <translation>Frequenzbasis</translation>
     </message>

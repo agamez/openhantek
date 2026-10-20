@@ -11,6 +11,7 @@
 #include "hantekprotocol/types.h"
 #include "processor.h"
 
+struct DsoSettingsPostProcessing;
 struct DsoSettingsScope;
 struct DsoSettingsView;
 class PPresult;
@@ -23,7 +24,7 @@ class GraphGenerator : public QObject, public Processor {
     Q_OBJECT
 
   public:
-    GraphGenerator( const DsoSettingsScope *scope );
+    GraphGenerator( const DsoSettingsScope *scope, const DsoSettingsPostProcessing *postprocessing );
 
   private:
     void generateGraphsTYvoltage( PPresult *result );
@@ -32,6 +33,7 @@ class GraphGenerator : public QObject, public Processor {
 
     bool ready = false;
     const DsoSettingsScope *scope;
+    const DsoSettingsPostProcessing *postprocessing;
     // Processor interface
     void process( PPresult *data ) override;
 };

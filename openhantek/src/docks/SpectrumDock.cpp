@@ -25,7 +25,8 @@ template < typename... Args > struct SELECT {
 };
 
 
-SpectrumDock::SpectrumDock( DsoSettingsScope *scope, QWidget *parent ) : QDockWidget( tr( "Spectrum" ), parent ), scope( scope ) {
+SpectrumDock::SpectrumDock( DsoSettingsScope *scope, DsoSettingsPostProcessing *postprocessing, QWidget *parent )
+    : QDockWidget( tr( "Spectrum" ), parent ), scope( scope ), postprocessing( postprocessing ) {
     // Initialize lists for comboboxes
     this->magnitudeSteps = {1, 2, 3, 6, 10, 20, 40, 60, 80, 100};
     for ( const auto &magnitude : magnitudeSteps )
@@ -70,12 +71,18 @@ SpectrumDock::SpectrumDock( DsoSettingsScope *scope, QWidget *parent ) : QDockWi
                      }
                  } );
     }
+    maxHoldCheckBox = new QCheckBox( tr( "Max hold" ) );
+    maxHoldCheckBox->setToolTip( tr( "Keep the maximum magnitude of each frequency bin" ) );
+    dockLayout->addWidget( maxHoldCheckBox, int( channel ), 0, 1, 2 );
+    connect( maxHoldCheckBox, &QCheckBox::toggled,
+             [this]( bool checked ) { this->postprocessing->spectrumMaxHold = checked; } );
+
     frequencybaseLabel = new QLabel( tr( "Frequencybase" ) );
     frequencybaseSiSpinBox = new SiSpinBox( UNIT_HERTZ );
     frequencybaseSiSpinBox->setMinimum( 0.1 );
     frequencybaseSiSpinBox->setMaximum( 100e6 );
-    dockLayout->addWidget( this->frequencybaseLabel, int( channel ), 0 );
-    dockLayout->addWidget( this->frequencybaseSiSpinBox, int( channel ), 1 );
+    dockLayout->addWidget( this->frequencybaseLabel, int( channel ) + 1, 0 );
+    dockLayout->addWidget( this->frequencybaseSiSpinBox, int( channel ) + 1, 1 );
     connect( frequencybaseSiSpinBox, SELECT< double >::OVERLOAD_OF( &QDoubleSpinBox::valueChanged ), this,
              &SpectrumDock::frequencybaseSelected );
 
@@ -92,6 +99,10 @@ void SpectrumDock::loadSettings( DsoSettingsScope *scope ) {
     for ( ChannelID channel = 0; channel < scope->voltage.size(); ++channel ) {
         this->setMagnitude( channel, scope->spectrum[ channel ].magnitude );
         this->setUsed( channel, scope->spectrum[ channel ].used );
+    }
+    {
+        QSignalBlocker blocker( maxHoldCheckBox );
+        maxHoldCheckBox->setChecked( postprocessing->spectrumMaxHold );
     }
     setFrequencybase( scope->horizontal.frequencybase );
 }

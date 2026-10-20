@@ -48,4 +48,5 @@ struct DsoSettingsPostProcessing {
     double spectrumReference = 0.0;                                    ///< Reference level for spectrum in dBu
     double spectrumLimit = -60.0;                                      ///< Minimum magnitude of the spectrum (Avoids peaks)
     unsigned averageCount = 1;                                         ///< Moving-average acquisition count (1 = off)
+    bool spectrumMaxHold = false;                                      ///< Keep the maximum magnitude of each spectrum bin
 };

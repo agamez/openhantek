@@ -12,6 +12,7 @@ class QCheckBox;
 class QComboBox;
 
 class SiSpinBox;
+struct DsoSettingsPostProcessing;
 
 /// \brief Dock window for the spectrum view.
 /// It contains the magnitude for all channels and allows to enable/disable the
@@ -22,9 +23,10 @@ class SpectrumDock : public QDockWidget {
   public:
     /// \brief Initializes the spectrum view docking window.
     /// \param settings The target settings object.
+    /// \param postprocessing The post processing settings.
     /// \param parent The parent widget.
     /// \param flags Flags for the window manager.
-    SpectrumDock( DsoSettingsScope *scope, QWidget *parent );
+    SpectrumDock( DsoSettingsScope *scope, DsoSettingsPostProcessing *postprocessing, QWidget *parent );
 
     /// \brief Sets the magnitude for a channel.
     /// \param channel The channel, whose magnitude should be set.
@@ -67,12 +69,14 @@ class SpectrumDock : public QDockWidget {
 
     std::vector< ChannelBlock > channelBlocks;
 
-    DsoSettingsScope *scope; ///< The settings provided by the parent class
+    DsoSettingsScope *scope;                   ///< The settings provided by the parent class
+    DsoSettingsPostProcessing *postprocessing; ///< The post processing settings
 
     std::vector< double > magnitudeSteps; ///< The selectable magnitude steps in dB/div
     QStringList magnitudeStrings;         ///< String representations for the magnitude steps
     QLabel *frequencybaseLabel;           ///< The label for the frequencybase spinbox
     SiSpinBox *frequencybaseSiSpinBox;    ///< Selects the frequencybase for spectrum graphs
+    QCheckBox *maxHoldCheckBox;           ///< Keeps the maximum magnitude of each spectrum bin
 
   signals:
     void magnitudeChanged( ChannelID channel, double magnitude ); ///< A magnitude has been selected

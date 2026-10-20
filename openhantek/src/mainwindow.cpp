@@ -133,7 +133,7 @@ MainWindow::MainWindow( HantekDsoControl *dsoControl, DsoSettings *settings, Exp
     VoltageDock *voltageDock = new VoltageDock( scope, &dsoSettings->post, spec, this );
     HorizontalDock *horizontalDock = new HorizontalDock( scope, spec, this );
     TriggerDock *triggerDock = new TriggerDock( scope, spec, this );
-    SpectrumDock *spectrumDock = new SpectrumDock( scope, this );
+    SpectrumDock *spectrumDock = new SpectrumDock( scope, &dsoSettings->post, this );
 
     addDockWidget( Qt::RightDockWidgetArea, voltageDock );
     addDockWidget( Qt::RightDockWidgetArea, horizontalDock );

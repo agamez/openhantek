@@ -41,6 +41,7 @@
 #include "post/mathchannelgenerator.h"
 #include "post/postprocessing.h"
 #include "post/spectrumgenerator.h"
+#include "post/spectrummaxholdprocessor.h"
 
 // Exporter
 #include "exporting/exportcsv.h"
@@ -244,13 +245,15 @@ int main( int argc, char *argv[] ) {
 
     AverageProcessor averageProcessor( &settings.post, &settings.scope );
     SpectrumGenerator spectrumGenerator( &settings.scope, &settings.post );
+    SpectrumMaxHoldProcessor spectrumMaxHoldProcessor( &settings.post, &settings.scope );
     MathChannelGenerator mathchannelGenerator( &settings.scope, spec->channels );
-    GraphGenerator graphGenerator( &settings.scope );
+    GraphGenerator graphGenerator( &settings.scope, &settings.post );
 
     postProcessing.registerProcessor( &samplesToExportRaw );
     postProcessing.registerProcessor( &mathchannelGenerator );
     postProcessing.registerProcessor( &averageProcessor );
     postProcessing.registerProcessor( &spectrumGenerator );
+    postProcessing.registerProcessor( &spectrumMaxHoldProcessor );
     postProcessing.registerProcessor( &graphGenerator );
 
     postProcessing.moveToThread( &postProcessingThread );
