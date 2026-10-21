@@ -94,8 +94,10 @@ Dso::ErrorCode HantekDsoControl::setSamplerate( double samplerate ) {
     if ( deviceNotConnected() )
         return Dso::ErrorCode::CONNECTION;
 
-    if ( samplerate == 0.0 ) {
+    if ( !( samplerate > 0.0 ) || !std::isfinite( samplerate ) ) {
         samplerate = controlsettings.samplerate.target.samplerate;
+        if ( !( samplerate > 0.0 ) || !std::isfinite( samplerate ) )
+            samplerate = controlsettings.samplerate.current;
     } else {
         controlsettings.samplerate.target.samplerate = samplerate;
         controlsettings.samplerate.target.samplerateSet = ControlSettingsSamplerateTarget::Samplerrate;

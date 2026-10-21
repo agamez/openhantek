@@ -16,9 +16,9 @@ struct ControlSamplerateLimits;
 
 /// \brief Stores the target samplerate settings of the device.
 struct ControlSettingsSamplerateTarget {
-    double samplerate; ///< The target samplerate set via setSamplerate
-    double duration;   ///< The target record time set via setRecordTime
-    enum SamplerrateSet { Duration, Samplerrate } samplerateSet;
+    double samplerate = 0.0; ///< The target samplerate set via setSamplerate
+    double duration = 0.0;   ///< The target record time set via setRecordTime
+    enum SamplerrateSet { Duration, Samplerrate } samplerateSet = Duration;
 };
 
 /// \brief Stores the current samplerate settings of the device.

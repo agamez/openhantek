@@ -144,10 +144,22 @@ unsigned SpectrumDock::setUsed( ChannelID channel, bool used ) {
 /// \param samplerare The samplerate in hertz.
 void SpectrumDock::setSamplerate( double samplerate ) {
     // printf( "SD::setSamplerate( %g )\n", samplerate );
+    if ( !std::isfinite( samplerate ) || samplerate < 1.0 )
+        return;
+
     double maxFreqBase = samplerate / DIVS_TIME / 2; // Nyquist frequency
-    frequencybaseSiSpinBox->setMaximum( maxFreqBase );
-    if ( frequencybaseSiSpinBox->value() > maxFreqBase )
-        setFrequencybase( maxFreqBase );
+    const double minFreqBase = frequencybaseSiSpinBox->minimum();
+    if ( maxFreqBase < minFreqBase )
+        maxFreqBase = minFreqBase;
+
+    // Avoid intermediate valueChanged signals while the range is adjusted.
+    {
+        QSignalBlocker blocker( frequencybaseSiSpinBox );
+        frequencybaseSiSpinBox->setMaximum( maxFreqBase );
+        if ( frequencybaseSiSpinBox->value() > maxFreqBase )
+            frequencybaseSiSpinBox->setValue( maxFreqBase );
+    }
+    setFrequencybase( frequencybaseSiSpinBox->value() );
 }
 
 
@@ -155,6 +167,14 @@ void SpectrumDock::setFrequencybase( double frequencybase ) {
     // printf( "SD::setFrequencybase( %g )\n", frequencybase );
     QSignalBlocker blocker( frequencybaseSiSpinBox );
     frequencybaseSiSpinBox->setValue( frequencybase );
+
+    // The spin box clamps values outside its range. Keep the setting in sync so
+    // an invalid value loaded from an old configuration cannot reach the graph.
+    const double clamped = frequencybaseSiSpinBox->value();
+    if ( scope->horizontal.frequencybase != clamped ) {
+        scope->horizontal.frequencybase = clamped;
+        emit frequencybaseChanged( clamped );
+    }
 }
 
 
