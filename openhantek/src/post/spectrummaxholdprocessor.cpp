@@ -22,7 +22,7 @@ void SpectrumMaxHoldProcessor::reset() {
 
 std::vector< double > SpectrumMaxHoldProcessor::settingsFingerprint() const {
     std::vector< double > values;
-    values.reserve( 12 + scope->voltage.size() * 6 );
+    values.reserve( 13 + scope->voltage.size() * 6 );
 
     values.push_back( scope->horizontal.timebase );
     values.push_back( scope->horizontal.samplerate );
@@ -33,6 +33,7 @@ std::vector< double > SpectrumMaxHoldProcessor::settingsFingerprint() const {
     values.push_back( double( scope->trigger.mode ) );
     values.push_back( scope->trigger.smooth ? 1.0 : 0.0 );
     values.push_back( double( postprocessing->spectrumWindow ) );
+    values.push_back( double( postprocessing->spectrumTimeSpan ) );
     values.push_back( postprocessing->spectrumReference );
     values.push_back( postprocessing->spectrumLimit );
     values.push_back( double( postprocessing->averageCount ) );

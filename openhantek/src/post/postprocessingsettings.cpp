@@ -9,6 +9,7 @@ namespace Dso {
 
 Enum< Dso::MathMode, Dso::MathMode::ADD_CH1_CH2, Dso::MathMode::AC_CH2 > MathModeEnum;
 Enum< Dso::WindowFunction, Dso::WindowFunction::RECTANGULAR, Dso::WindowFunction::FLATTOP > WindowFunctionEnum;
+Enum< Dso::SpectrumTimeSpan, Dso::SpectrumTimeSpan::VISIBLE, Dso::SpectrumTimeSpan::RECORD > SpectrumTimeSpanEnum;
 
 /// \brief Return string representation of the given math mode.
 /// \param mode The ::MathMode that should be returned as string.

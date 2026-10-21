@@ -202,6 +202,11 @@ void DsoSettings::load() {
         post.spectrumReference = storeSettings->value( "spectrumReference" ).toDouble();
     if ( storeSettings->contains( "spectrumWindow" ) )
         post.spectrumWindow = Dso::WindowFunction( storeSettings->value( "spectrumWindow" ).toInt() );
+    if ( storeSettings->contains( "spectrumTimeSpan" ) ) {
+        const int timeSpan = storeSettings->value( "spectrumTimeSpan" ).toInt();
+        if ( timeSpan >= int( Dso::SpectrumTimeSpan::VISIBLE ) && timeSpan <= int( Dso::SpectrumTimeSpan::RECORD ) )
+            post.spectrumTimeSpan = Dso::SpectrumTimeSpan( timeSpan );
+    }
     if ( storeSettings->contains( "spectrumMaxHold" ) )
         post.spectrumMaxHold = storeSettings->value( "spectrumMaxHold" ).toBool();
     if ( storeSettings->contains( "averageCount" ) )
@@ -355,6 +360,7 @@ void DsoSettings::save() {
     storeSettings->setValue( "spectrumLimit", post.spectrumLimit );
     storeSettings->setValue( "spectrumReference", post.spectrumReference );
     storeSettings->setValue( "spectrumWindow", unsigned( post.spectrumWindow ) );
+    storeSettings->setValue( "spectrumTimeSpan", int( post.spectrumTimeSpan ) );
     storeSettings->setValue( "spectrumMaxHold", post.spectrumMaxHold );
     storeSettings->setValue( "averageCount", post.averageCount );
     storeSettings->endGroup(); // scope

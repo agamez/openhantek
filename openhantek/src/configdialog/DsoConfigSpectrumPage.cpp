@@ -17,6 +17,11 @@ DsoConfigSpectrumPage::DsoConfigSpectrumPage( DsoSettings *settings, QWidget *pa
     windowFunctionComboBox->addItems( windowFunctionStrings );
     windowFunctionComboBox->setCurrentIndex( int( settings->post.spectrumWindow ) );
 
+    timeSpanLabel = new QLabel( tr( "<b>FFT time span</b>" ) );
+    timeSpanComboBox = new QComboBox();
+    timeSpanComboBox->addItems( QStringList() << tr( "Visible screen" ) << tr( "Full record" ) );
+    timeSpanComboBox->setCurrentIndex( int( settings->post.spectrumTimeSpan ) );
+
     referenceLevelLabel = new QLabel(
         tr( "<b>Reference level</b><br/>0 dBu = -2.2 dBV<br/>0 dBm (@600 &Omega;) = -2.2 dBV<br/>0 dBm (@50 &Omega;) = -13 dBV" ) );
     referenceLevelSpinBox = new QDoubleSpinBox();
@@ -43,10 +48,12 @@ DsoConfigSpectrumPage::DsoConfigSpectrumPage( DsoSettings *settings, QWidget *pa
     spectrumLayout = new QGridLayout();
     spectrumLayout->addWidget( windowFunctionLabel, 0, 0 );
     spectrumLayout->addWidget( windowFunctionComboBox, 0, 1 );
-    spectrumLayout->addWidget( referenceLevelLabel, 1, 0 );
-    spectrumLayout->addLayout( referenceLevelLayout, 1, 1 );
-    spectrumLayout->addWidget( minimumMagnitudeLabel, 2, 0 );
-    spectrumLayout->addLayout( minimumMagnitudeLayout, 2, 1 );
+    spectrumLayout->addWidget( timeSpanLabel, 1, 0 );
+    spectrumLayout->addWidget( timeSpanComboBox, 1, 1 );
+    spectrumLayout->addWidget( referenceLevelLabel, 2, 0 );
+    spectrumLayout->addLayout( referenceLevelLayout, 2, 1 );
+    spectrumLayout->addWidget( minimumMagnitudeLabel, 3, 0 );
+    spectrumLayout->addLayout( minimumMagnitudeLayout, 3, 1 );
 
     spectrumGroup = new QGroupBox( tr( "Spectrum" ) );
     spectrumGroup->setLayout( spectrumLayout );
@@ -61,6 +68,7 @@ DsoConfigSpectrumPage::DsoConfigSpectrumPage( DsoSettings *settings, QWidget *pa
 /// \brief Saves the new settings.
 void DsoConfigSpectrumPage::saveSettings() {
     settings->post.spectrumWindow = Dso::WindowFunction( windowFunctionComboBox->currentIndex() );
+    settings->post.spectrumTimeSpan = Dso::SpectrumTimeSpan( timeSpanComboBox->currentIndex() );
     settings->post.spectrumReference = referenceLevelSpinBox->value();
     settings->post.spectrumLimit = minimumMagnitudeSpinBox->value();
 }

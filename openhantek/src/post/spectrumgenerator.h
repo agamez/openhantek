@@ -30,7 +30,7 @@ class SpectrumGenerator : public Processor {
   private:
     const DsoSettingsScope *scope;
     const DsoSettingsPostProcessing *postprocessing;
-    unsigned int lastRecordLength = 0;                          ///< The record length of the previously analyzed data
+    unsigned int lastWindowLength = 0;                          ///< Length of the previously calculated window
     Dso::WindowFunction lastWindow = Dso::WindowFunction( -1 ); ///< The previously used dft window function
     double *lastWindowBuffer = nullptr;
     // Processor interface

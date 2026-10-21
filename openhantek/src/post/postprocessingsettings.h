@@ -36,6 +36,14 @@ enum class WindowFunction : int {
 };
 extern Enum< Dso::WindowFunction, Dso::WindowFunction::RECTANGULAR, Dso::WindowFunction::FLATTOP > WindowFunctionEnum;
 
+/// \enum SpectrumTimeSpan
+/// \brief Selects the part of the acquired record used for the DFT.
+enum class SpectrumTimeSpan : int {
+    VISIBLE, ///< Use the samples that are visible on screen
+    RECORD   ///< Use the complete acquired record
+};
+extern Enum< Dso::SpectrumTimeSpan, Dso::SpectrumTimeSpan::VISIBLE, Dso::SpectrumTimeSpan::RECORD > SpectrumTimeSpanEnum;
+
 QString mathModeString( MathMode mode );
 // QString windowFunctionString(WindowFunction window);
 } // namespace Dso
@@ -44,9 +52,10 @@ Q_DECLARE_METATYPE( Dso::MathMode )
 Q_DECLARE_METATYPE( Dso::WindowFunction )
 
 struct DsoSettingsPostProcessing {
-    Dso::WindowFunction spectrumWindow = Dso::WindowFunction::HAMMING; ///< Window function for DFT
-    double spectrumReference = 0.0;                                    ///< Reference level for spectrum in dBu
-    double spectrumLimit = -60.0;                                      ///< Minimum magnitude of the spectrum (Avoids peaks)
-    unsigned averageCount = 1;                                         ///< Moving-average acquisition count (1 = off)
-    bool spectrumMaxHold = false;                                      ///< Keep the maximum magnitude of each spectrum bin
+    Dso::WindowFunction spectrumWindow = Dso::WindowFunction::HAMMING;       ///< Window function for DFT
+    Dso::SpectrumTimeSpan spectrumTimeSpan = Dso::SpectrumTimeSpan::VISIBLE; ///< Part of the record used for DFT
+    double spectrumReference = 0.0;                                          ///< Reference level for spectrum in dBu
+    double spectrumLimit = -60.0;                                            ///< Minimum magnitude of the spectrum (Avoids peaks)
+    unsigned averageCount = 1;                                               ///< Moving-average acquisition count (1 = off)
+    bool spectrumMaxHold = false;                                            ///< Keep the maximum magnitude of each spectrum bin
 };

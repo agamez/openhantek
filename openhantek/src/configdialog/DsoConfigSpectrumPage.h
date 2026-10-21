@@ -36,6 +36,9 @@ class DsoConfigSpectrumPage : public QWidget {
     QLabel *windowFunctionLabel;
     QComboBox *windowFunctionComboBox;
 
+    QLabel *timeSpanLabel;
+    QComboBox *timeSpanComboBox;
+
     QLabel *referenceLevelLabel;
     QDoubleSpinBox *referenceLevelSpinBox;
     QLabel *referenceLevelUnitLabel;

@@ -40,31 +40,65 @@ void SpectrumGenerator::process( PPresult *result ) {
         // Calculate new window
         // scale all windows to display 1 Veff as 0 dBu reference level.
         size_t sampleCount = channelData->voltage.sample.size();
-        if ( !lastWindowBuffer || lastWindow != postprocessing->spectrumWindow || lastRecordLength != sampleCount ) {
+        if ( sampleCount < 2 ) {
+            channelData->spectrum.interval = 0;
+            channelData->spectrum.sample.clear();
+            continue;
+        }
+
+        // Determine the visible part of the trace. This is also used for Vpp.
+        const double horizontalFactor = channelData->voltage.interval / scope->horizontal.timebase;
+        const unsigned int dotsOnScreen = unsigned( ceil( DIVS_TIME / horizontalFactor ) );
+        const unsigned int preTrigSamples = unsigned( scope->trigger.offset * dotsOnScreen );
+        int left = int( result->triggeredPosition ) - int( preTrigSamples ); // 1st sample to show
+        int right = left + int( dotsOnScreen );                              // last sample to show
+        if ( left < 0 )                                                      // trig pos or time/div was increased
+            left = 0;                                                        // show as much as we have on left side
+        if ( left >= int( sampleCount ) )
+            left = int( sampleCount ) - 1;
+        if ( right >= int( sampleCount ) )
+            right = int( sampleCount ) - 1;
+        if ( right < left )
+            right = left;
+
+        // Select the samples used for the DFT.
+        unsigned int fftStart = 0;
+        size_t fftSampleCount = sampleCount;
+        if ( postprocessing->spectrumTimeSpan == Dso::SpectrumTimeSpan::VISIBLE ) {
+            fftStart = unsigned( left );
+            fftSampleCount = size_t( right - left + 1 );
+            if ( fftSampleCount < 2 ) {
+                fftSampleCount = 2;
+                if ( fftStart + fftSampleCount > sampleCount )
+                    fftStart = unsigned( sampleCount - fftSampleCount );
+            }
+        }
+
+        if ( !lastWindowBuffer || lastWindow != postprocessing->spectrumWindow || lastWindowLength != fftSampleCount ) {
             if ( lastWindowBuffer )
                 fftw_free( lastWindowBuffer );
-            lastWindowBuffer = fftw_alloc_real( sampleCount );
-            lastRecordLength = unsigned( sampleCount );
+            lastWindowBuffer = fftw_alloc_real( fftSampleCount );
+            lastWindowLength = unsigned( fftSampleCount );
 
-            unsigned int windowEnd = lastRecordLength - 1;
+            unsigned int windowEnd = lastWindowLength - 1;
             lastWindow = postprocessing->spectrumWindow;
             double weight = 0.0; // calculate area under window fkt
             switch ( postprocessing->spectrumWindow ) {
             case Dso::WindowFunction::HAMMING:
-                for ( unsigned int windowPosition = 0; windowPosition < lastRecordLength; ++windowPosition )
+                for ( unsigned int windowPosition = 0; windowPosition < lastWindowLength; ++windowPosition )
                     weight += *( lastWindowBuffer + windowPosition ) = 0.54 - 0.46 * cos( 2.0 * M_PI * windowPosition / windowEnd );
                 break;
             case Dso::WindowFunction::HANN:
-                for ( unsigned int windowPosition = 0; windowPosition < lastRecordLength; ++windowPosition )
+                for ( unsigned int windowPosition = 0; windowPosition < lastWindowLength; ++windowPosition )
                     weight += *( lastWindowBuffer + windowPosition ) =
                         0.5 * ( 1.0 - cos( 2.0 * M_PI * windowPosition / windowEnd ) );
                 break;
             case Dso::WindowFunction::COSINE:
-                for ( unsigned int windowPosition = 0; windowPosition < lastRecordLength; ++windowPosition )
+                for ( unsigned int windowPosition = 0; windowPosition < lastWindowLength; ++windowPosition )
                     weight += *( lastWindowBuffer + windowPosition ) = sin( M_PI * windowPosition / windowEnd );
                 break;
             case Dso::WindowFunction::LANCZOS:
-                for ( unsigned int windowPosition = 0; windowPosition < lastRecordLength; ++windowPosition ) {
+                for ( unsigned int windowPosition = 0; windowPosition < lastWindowLength; ++windowPosition ) {
                     double sincParameter = ( 2.0 * windowPosition / windowEnd - 1.0 ) * M_PI;
 #ifdef __GNUC__
 #pragma GCC diagnostic push
@@ -81,32 +115,32 @@ void SpectrumGenerator::process( PPresult *result ) {
                 }
                 break;
             case Dso::WindowFunction::BARTLETT:
-                for ( unsigned int windowPosition = 0; windowPosition < lastRecordLength; ++windowPosition )
+                for ( unsigned int windowPosition = 0; windowPosition < lastWindowLength; ++windowPosition )
                     weight += *( lastWindowBuffer + windowPosition ) =
                         2.0 / windowEnd * ( windowEnd / 2 - std::abs( double( windowPosition - windowEnd / 2.0 ) ) );
                 break;
             case Dso::WindowFunction::TRIANGULAR:
-                for ( unsigned int windowPosition = 0; windowPosition < lastRecordLength; ++windowPosition )
+                for ( unsigned int windowPosition = 0; windowPosition < lastWindowLength; ++windowPosition )
                     weight += *( lastWindowBuffer + windowPosition ) =
-                        2.0 / lastRecordLength * ( lastRecordLength / 2 - std::abs( double( windowPosition - windowEnd / 2.0 ) ) );
+                        2.0 / lastWindowLength * ( lastWindowLength / 2 - std::abs( double( windowPosition - windowEnd / 2.0 ) ) );
                 break;
             case Dso::WindowFunction::GAUSS: {
                 const double sigma = 0.5;
-                for ( unsigned int windowPosition = 0; windowPosition < lastRecordLength; ++windowPosition ) {
-                    double w = ( double( windowPosition ) - lastRecordLength / 2.0 ) / ( sigma * lastRecordLength / 2.0 );
+                for ( unsigned int windowPosition = 0; windowPosition < lastWindowLength; ++windowPosition ) {
+                    double w = ( double( windowPosition ) - lastWindowLength / 2.0 ) / ( sigma * lastWindowLength / 2.0 );
                     w *= w;
                     weight += *( lastWindowBuffer + windowPosition ) = exp( -w );
                 }
             } break;
             case Dso::WindowFunction::BARTLETTHANN:
-                for ( unsigned int windowPosition = 0; windowPosition < lastRecordLength; ++windowPosition )
+                for ( unsigned int windowPosition = 0; windowPosition < lastWindowLength; ++windowPosition )
                     weight += *( lastWindowBuffer + windowPosition ) =
                         0.62 - 0.48 * std::abs( double( windowPosition / windowEnd - 0.5 ) ) -
                         0.38 * cos( 2.0 * M_PI * windowPosition / windowEnd );
                 break;
             case Dso::WindowFunction::BLACKMAN: {
                 double alpha = 0.16;
-                for ( unsigned int windowPosition = 0; windowPosition < lastRecordLength; ++windowPosition )
+                for ( unsigned int windowPosition = 0; windowPosition < lastWindowLength; ++windowPosition )
                     weight += *( lastWindowBuffer + windowPosition ) = ( 1 - alpha ) / 2 -
                                                                        0.5 * cos( 2.0 * M_PI * windowPosition / windowEnd ) +
                                                                        alpha / 2 * cos( 4.0 * M_PI * windowPosition / windowEnd );
@@ -115,43 +149,43 @@ void SpectrumGenerator::process( PPresult *result ) {
             //     TODO WINDOW_KAISER
             //     corr = dB( 0 );
             //     double alpha = 3.0;
-            //     for(unsigned int windowPosition = 0; windowPosition < lastRecordLength; ++windowPosition)
+            //     for(unsigned int windowPosition = 0; windowPosition < lastWindowLength; ++windowPosition)
             //         weight += *(window + windowPosition) = ...;
             //     break;
             case Dso::WindowFunction::NUTTALL:
-                for ( unsigned int windowPosition = 0; windowPosition < lastRecordLength; ++windowPosition )
+                for ( unsigned int windowPosition = 0; windowPosition < lastWindowLength; ++windowPosition )
                     weight += *( lastWindowBuffer + windowPosition ) = 0.355768 -
                                                                        0.487396 * cos( 2 * M_PI * windowPosition / windowEnd ) +
                                                                        0.144232 * cos( 4 * M_PI * windowPosition / windowEnd ) -
                                                                        0.012604 * cos( 6 * M_PI * windowPosition / windowEnd );
                 break;
             case Dso::WindowFunction::BLACKMANHARRIS:
-                for ( unsigned int windowPosition = 0; windowPosition < lastRecordLength; ++windowPosition )
+                for ( unsigned int windowPosition = 0; windowPosition < lastWindowLength; ++windowPosition )
                     weight += *( lastWindowBuffer + windowPosition ) = 0.35875 -
                                                                        0.48829 * cos( 2 * M_PI * windowPosition / windowEnd ) +
                                                                        0.14128 * cos( 4 * M_PI * windowPosition / windowEnd ) -
                                                                        0.01168 * cos( 6 * M_PI * windowPosition / windowEnd );
                 break;
             case Dso::WindowFunction::BLACKMANNUTTALL:
-                for ( unsigned int windowPosition = 0; windowPosition < lastRecordLength; ++windowPosition )
+                for ( unsigned int windowPosition = 0; windowPosition < lastWindowLength; ++windowPosition )
                     weight += *( lastWindowBuffer + windowPosition ) = 0.3635819 -
                                                                        0.4891775 * cos( 2 * M_PI * windowPosition / windowEnd ) +
                                                                        0.1365995 * cos( 4 * M_PI * windowPosition / windowEnd ) -
                                                                        0.0106411 * cos( 6 * M_PI * windowPosition / windowEnd );
                 break;
             case Dso::WindowFunction::FLATTOP: // wikipedia.de
-                for ( unsigned int windowPosition = 0; windowPosition < lastRecordLength; ++windowPosition )
+                for ( unsigned int windowPosition = 0; windowPosition < lastWindowLength; ++windowPosition )
                     weight += *( lastWindowBuffer + windowPosition ) = 1.0 - 1.93 * cos( 2 * M_PI * windowPosition / windowEnd ) +
                                                                        1.29 * cos( 4 * M_PI * windowPosition / windowEnd ) -
                                                                        0.388 * cos( 6 * M_PI * windowPosition / windowEnd ) +
                                                                        0.028 * cos( 8 * M_PI * windowPosition / windowEnd );
                 break;
             default: // Dso::WINDOW_RECTANGULAR
-                for ( unsigned int windowPosition = 0; windowPosition < lastRecordLength; ++windowPosition )
+                for ( unsigned int windowPosition = 0; windowPosition < lastWindowLength; ++windowPosition )
                     weight += *( lastWindowBuffer + windowPosition ) = 1.0;
             }
             // weight is the area below the window function
-            weight = lastRecordLength / weight; // normalise all windows equal to the rectangular window
+            weight = lastWindowLength / weight; // normalise all windows equal to the rectangular window
 
             // DFT transforms a 1V sin(ωt) signal to 1 = 0 dB, RMS = 0.707 V = sqrt(0.5) V (-3dBV)
             // If we want to scale to 0 dBu = 0 dBm @ 600 Ω, RMS = 0.775V = sqrt(1 mW * 600 Ω)
@@ -159,36 +193,25 @@ void SpectrumGenerator::process( PPresult *result ) {
             weight *= sqrt( 0.5 ); // scale display to 0 dBV -> 1V RMS = 0dB
             // printf( "window %u, weight %g\n", (unsigned)postprocessing->spectrumWindow, weight );
             // scale the windowed samples
-            for ( unsigned int windowPosition = 0; windowPosition < lastRecordLength; ++windowPosition )
+            for ( unsigned int windowPosition = 0; windowPosition < lastWindowLength; ++windowPosition )
                 *( lastWindowBuffer + windowPosition ) *= weight;
         }
 
         // Set sampling interval
-        channelData->spectrum.interval = 1.0 / channelData->voltage.interval / sampleCount;
+        channelData->spectrum.interval = 1.0 / channelData->voltage.interval / fftSampleCount;
 
         // Number of real/complex samples
-        unsigned int dftLength = unsigned( sampleCount ) / 2;
+        unsigned int dftLength = unsigned( fftSampleCount ) / 2;
 
         // Reallocate memory for samples if the sample count has changed
-        channelData->spectrum.sample.resize( sampleCount );
+        channelData->spectrum.sample.resize( fftSampleCount );
 
         // Create sample buffer and apply window
-        std::unique_ptr< double[] > windowedValues = std::unique_ptr< double[] >( new double[ sampleCount ] );
+        std::unique_ptr< double[] > windowedValues = std::unique_ptr< double[] >( new double[ fftSampleCount ] );
 
         // calculate the peak-to-peak value of the displayed part of trace
         double min = INT_MAX;
         double max = INT_MIN;
-        // TODO: adapt triggerPosition (left = tP - preTrig; right = left + dotsOnScreen)
-        double horizontalFactor = result->data( channel )->voltage.interval / scope->horizontal.timebase;
-        unsigned dotsOnScreen = unsigned( DIVS_TIME / horizontalFactor + 0.99 ); // round up
-        unsigned preTrigSamples = unsigned( scope->trigger.offset * dotsOnScreen );
-        int left = int( result->triggeredPosition ) - int( preTrigSamples ); // 1st sample to show
-        int right = left + int( dotsOnScreen );                              // last sample to show
-        if ( left < 0 )                                                      // trig pos or time/div was increased
-            left = 0;                                                        // show as much as we have on left side
-        // unsigned right = result->triggerPosition + DIVS_TIME * scope->horizontal.timebase / channelData->voltage.interval;
-        if ( right >= int( sampleCount ) )
-            right = int( sampleCount ) - 1;
         for ( int position = left; // left side of trace
               position <= right;   // right side
               ++position ) {
@@ -209,15 +232,24 @@ void SpectrumGenerator::process( PPresult *result ) {
         dc /= sampleCount;
         channelData->dc = dc;
 
-        // now strip DC bias, calculate rms of AC component and apply window for fft to AC component
+        // now strip DC bias and calculate rms of the AC component over the full record
         double ac2 = 0.0;
         voltageIterator = channelData->voltage.sample.begin();
         for ( unsigned int position = 0; position < sampleCount; ++position ) {
             double ac_sample = *voltageIterator++ - dc;
             ac2 += ac_sample * ac_sample;
-            windowedValues[ position ] = lastWindowBuffer[ position ] * ac_sample;
         }
         ac2 /= sampleCount;
+
+        // Apply the window to the selected FFT time span. Remove the mean of
+        // that span so a selected segment does not create an artificial DC bin.
+        double fftDc = 0.0;
+        for ( size_t position = 0; position < fftSampleCount; ++position )
+            fftDc += channelData->voltage.sample[ fftStart + position ];
+        fftDc /= fftSampleCount;
+        for ( size_t position = 0; position < fftSampleCount; ++position )
+            windowedValues[ position ] =
+                lastWindowBuffer[ position ] * ( channelData->voltage.sample[ fftStart + position ] - fftDc );
         channelData->ac = sqrt( ac2 );            // rms of AC component
         channelData->rms = sqrt( dc * dc + ac2 ); // total rms = U eff
         channelData->dB = 10.0 * log10( ac2 ) - postprocessing->spectrumReference;
@@ -229,8 +261,8 @@ void SpectrumGenerator::process( PPresult *result ) {
         /// \todo Reuse plan and use FFTW_MEASURE to get fastest algorithm
 
         fftw_plan fftPlan;
-        fftPlan = fftw_plan_r2r_1d( int( sampleCount ), windowedValues.get(), &channelData->spectrum.sample.front(), FFTW_R2HC,
-                                    FFTW_ESTIMATE );
+        fftPlan = fftw_plan_r2r_1d( int( fftSampleCount ), windowedValues.get(), &channelData->spectrum.sample.front(),
+                                    FFTW_R2HC, FFTW_ESTIMATE );
         fftw_execute( fftPlan );
         fftw_destroy_plan( fftPlan );
 
@@ -266,15 +298,16 @@ void SpectrumGenerator::process( PPresult *result ) {
         powerSpectrum[ position ] = *fwd * norm;
         ++fwd;
         // Complex values, all zero for autocorrelation
-        for ( ++position; position < sampleCount; ++position ) {
+        for ( ++position; position < fftSampleCount; ++position ) {
             powerSpectrum[ position ] = 0;
         }
         // skip mirrored 2nd half of result spectrum
         channelData->spectrum.sample.resize( dftLength + 1 );
 
         // Do half-complex to real inverse transformation -> autocorrelation
-        std::unique_ptr< double[] > correlation = std::unique_ptr< double[] >( new double[ sampleCount ] );
-        fftPlan = fftw_plan_r2r_1d( int( sampleCount ), powerSpectrum.get(), correlation.get(), FFTW_HC2R, FFTW_ESTIMATE );
+        std::unique_ptr< double[] > correlation = std::unique_ptr< double[] >( new double[ fftSampleCount ] );
+        fftPlan = fftw_plan_r2r_1d( int( fftSampleCount ), powerSpectrum.get(), correlation.get(), FFTW_HC2R,
+                                    FFTW_ESTIMATE );
         fftw_execute( fftPlan );
         fftw_destroy_plan( fftPlan );
 
@@ -284,7 +317,7 @@ void SpectrumGenerator::process( PPresult *result ) {
         double maxCorr = 0;
         unsigned maxCorrPos = 0;
         // search from right to left for a max and remember this if a following min corr (<0) is found
-        for ( position = unsigned( sampleCount ) / 2; position > 1; --position ) { // go down to get leftmost peak (= max freq)
+        for ( position = unsigned( fftSampleCount ) / 2; position > 1; --position ) { // go down to get leftmost peak (= max freq)
             if ( correlation[ position ] > maxCorr ) {                             // find (local) max
                 maxCorr = correlation[ position ];
                 maxCorrPos = position;
@@ -328,7 +361,7 @@ void SpectrumGenerator::process( PPresult *result ) {
         // printf( "pC %u: %d  %g\n", channel, peakCorrPos, pC );
         if ( peakFreqPos > peakCorrPos // use frequency result if it is more granular than correlation
              || peakFreqPos > 100      // or at least if it is granular enough (+- 1% resolution)
-             || peakCorrPos < 100 || peakCorrPos > sampleCount / 4 ) { // or if correlation is out of safe range
+             || peakCorrPos < 100 || peakCorrPos > fftSampleCount / 4 ) { // or if correlation is out of safe range
             channelData->frequency = pF;
         } else { // otherwise fall back to correlation
             channelData->frequency = pC;
