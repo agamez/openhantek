@@ -41,7 +41,7 @@ After David [stopped maintaining](https://github.com/OpenHantek/openhantek/issue
 * 48 MS/s not supported due to unstable USB data streaming.
 * Downsampling (up to 100x) increases solution and SNR.
 * Calibration output square wave signal frequency can be selected between 50 Hz .. 100 kHz in 1/2/5 steps.
-* Trigger modes: Normal, Auto and Single with green/red status display (top left).
+* Trigger modes: Roll, Normal, Auto and Pulse, plus a separate Single-shot condition, with green/red status display (top left).
 * Calibration values loaded from eeprom or a model configuration file.
 * [Calibration program](https://github.com/Ho-Ro/Hantek6022API/blob/master/README.md#create-calibration-values-for-openhantek) to create these values automatically.
 * Digital phosphor effect to notice even short spikes; simple eye-diagram display with alternating trigger slope.

@@ -137,7 +137,6 @@ static void initSpecifications( Dso::ControlSpecification &specification ) {
         Dso::TriggerMode::ROLL,
         Dso::TriggerMode::AUTO,
         Dso::TriggerMode::NORMAL,
-        Dso::TriggerMode::SINGLE,
         Dso::TriggerMode::PULSE,
     };
     specification.fixedUSBinLength = 0;

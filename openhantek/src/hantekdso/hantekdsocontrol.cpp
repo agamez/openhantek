@@ -286,8 +286,7 @@ Dso::ErrorCode HantekDsoControl::setTriggerMode( Dso::TriggerMode mode ) {
 
     static Dso::TriggerMode lastMode;
     controlsettings.trigger.mode = mode;
-    if ( Dso::TriggerMode::SINGLE != mode )
-        enableSampling( true );
+    enableSampling( true );
     // trigger mode changed NONE <-> !NONE
     if ( ( Dso::TriggerMode::ROLL == mode && Dso::TriggerMode::ROLL != lastMode ) ||
          ( Dso::TriggerMode::ROLL != mode && Dso::TriggerMode::ROLL == lastMode ) ) {
@@ -295,6 +294,16 @@ Dso::ErrorCode HantekDsoControl::setTriggerMode( Dso::TriggerMode mode ) {
         raw.freeRun = Dso::TriggerMode::ROLL == mode;
     }
     lastMode = mode;
+    newTriggerParam = true;
+    return Dso::ErrorCode::NONE;
+}
+
+
+Dso::ErrorCode HantekDsoControl::setTriggerSingle( bool single ) {
+    if ( deviceNotConnected() )
+        return Dso::ErrorCode::CONNECTION;
+    controlsettings.trigger.single = single;
+    enableSampling( true ); // (re-)arm the single capture or resume continuous sampling
     newTriggerParam = true;
     return Dso::ErrorCode::NONE;
 }
@@ -398,6 +407,7 @@ void HantekDsoControl::applySettings( DsoSettingsScope *dsoSettingsScope ) {
     setRecordTime( dsoSettingsScope->horizontal.timebase * DIVS_TIME );
     setCalFreq( dsoSettingsScope->horizontal.calfreq );
     setTriggerMode( dsoSettingsScope->trigger.mode );
+    setTriggerSingle( dsoSettingsScope->trigger.single );
     setTriggerOffset( dsoSettingsScope->trigger.offset );
     setTriggerSlope( dsoSettingsScope->trigger.slope );
     setTriggerSource( dsoSettingsScope->trigger.source, dsoSettingsScope->trigger.smooth );
@@ -417,6 +427,10 @@ void HantekDsoControl::restartSampling() {
 
 /// \brief Start sampling process.
 void HantekDsoControl::enableSampling( bool enabled ) {
+    if ( enabled && controlsettings.trigger.single ) {
+        triggeredPositionRaw = 0; // re-arm: don't stop on a trigger from the previous capture
+        newTriggerParam = true;
+    }
     sampling = enabled;
     updateSamplerateLimits();
     emit samplingStatusChanged( enabled );
@@ -853,8 +867,8 @@ void HantekDsoControl::stateMachine() {
 
     lastTriggered = triggered; // save state
 
-    // Stop sampling if we're in single trigger mode and have a triggered trace (txh No13)
-    if ( controlsettings.trigger.mode == Dso::TriggerMode::SINGLE && samplingStarted && triggeredPositionRaw > 0 ) {
+    // Stop sampling after a single-shot trigger and keep the triggered trace
+    if ( controlsettings.trigger.single && samplingStarted && triggeredPositionRaw > 0 ) {
         enableSampling( false );
     }
 

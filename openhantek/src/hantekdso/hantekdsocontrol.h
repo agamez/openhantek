@@ -275,6 +275,10 @@ class HantekDsoControl : public QObject {
     /// \return See ::Dso::ErrorCode.
     Dso::ErrorCode setTriggerMode( Dso::TriggerMode mode );
 
+    /// \brief Enable/disable single-shot triggering with the current trigger criteria.
+    /// \return See ::Dso::ErrorCode.
+    Dso::ErrorCode setTriggerSingle( bool single );
+
     /// \brief Set the trigger source.
     /// \param id The channel that should be used as trigger.
     /// \return See ::Dso::ErrorCode.

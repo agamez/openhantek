@@ -36,6 +36,9 @@ TriggerDock::TriggerDock( DsoSettingsScope *scope, const Dso::ControlSpecificati
     for ( Dso::TriggerMode mode : mSpec->triggerModes )
         modeComboBox->addItem( Dso::triggerModeString( mode ) );
 
+    singleCheckBox = new QCheckBox( tr( "Single" ) );
+    singleCheckBox->setToolTip( tr( "Stop after the next trigger event" ) );
+
     slopeLabel = new QLabel( tr( "Slope" ) );
     slopeComboBox = new QComboBox();
     for ( Dso::Slope slope : Dso::SlopeEnum )
@@ -76,18 +79,19 @@ TriggerDock::TriggerDock( DsoSettingsScope *scope, const Dso::ControlSpecificati
     dockLayout->setSpacing( DOCK_LAYOUT_SPACING );
     dockLayout->addWidget( modeLabel, 0, 0 );
     dockLayout->addWidget( modeComboBox, 0, 1 );
-    dockLayout->addWidget( sourceLabel, 1, 0 );
-    dockLayout->addWidget( sourceComboBox, 1, 1 );
-    dockLayout->addWidget( slopeLabel, 2, 0 );
-    dockLayout->addWidget( slopeComboBox, 2, 1 );
-    dockLayout->addWidget( pulseWidthLabel, 3, 0 );
-    dockLayout->addWidget( pulseWidthSiSpinBox, 3, 1 );
-    dockLayout->addWidget( pulseConditionLabel, 4, 0 );
-    dockLayout->addWidget( pulseConditionComboBox, 4, 1 );
-    dockLayout->addWidget( pulsePolarityLabel, 5, 0 );
-    dockLayout->addWidget( pulsePolarityComboBox, 5, 1 );
-    dockLayout->addWidget( pulseToleranceLabel, 6, 0 );
-    dockLayout->addWidget( pulseToleranceSpinBox, 6, 1 );
+    dockLayout->addWidget( singleCheckBox, 1, 0, 1, 2 );
+    dockLayout->addWidget( sourceLabel, 2, 0 );
+    dockLayout->addWidget( sourceComboBox, 2, 1 );
+    dockLayout->addWidget( slopeLabel, 3, 0 );
+    dockLayout->addWidget( slopeComboBox, 3, 1 );
+    dockLayout->addWidget( pulseWidthLabel, 4, 0 );
+    dockLayout->addWidget( pulseWidthSiSpinBox, 4, 1 );
+    dockLayout->addWidget( pulseConditionLabel, 5, 0 );
+    dockLayout->addWidget( pulseConditionComboBox, 5, 1 );
+    dockLayout->addWidget( pulsePolarityLabel, 6, 0 );
+    dockLayout->addWidget( pulsePolarityComboBox, 6, 1 );
+    dockLayout->addWidget( pulseToleranceLabel, 7, 0 );
+    dockLayout->addWidget( pulseToleranceSpinBox, 7, 1 );
 
     dockWidget = new QWidget();
     SetupDockWidget( this, dockWidget, dockLayout );
@@ -100,6 +104,10 @@ TriggerDock::TriggerDock( DsoSettingsScope *scope, const Dso::ControlSpecificati
         this->scope->trigger.mode = mSpec->triggerModes[ unsigned( index ) ];
         updatePulseControls();
         emit modeChanged( this->scope->trigger.mode );
+    } );
+    connect( singleCheckBox, &QCheckBox::toggled, [this]( bool single ) {
+        this->scope->trigger.single = single;
+        emit singleChanged( single );
     } );
     connect( slopeComboBox, static_cast< void ( QComboBox::* )( int ) >( &QComboBox::currentIndexChanged ), [this]( int index ) {
         this->scope->trigger.slope = Dso::Slope( index );
@@ -138,6 +146,7 @@ TriggerDock::TriggerDock( DsoSettingsScope *scope, const Dso::ControlSpecificati
 void TriggerDock::loadSettings( DsoSettingsScope *scope ) {
     // Set values
     setMode( scope->trigger.mode );
+    setSingle( scope->trigger.single );
     setSlope( scope->trigger.slope );
     setSource( int( scope->trigger.source ), scope->trigger.smooth );
     setPulseWidth( scope->trigger.pulseWidth );
@@ -162,6 +171,13 @@ void TriggerDock::setMode( Dso::TriggerMode mode ) {
     updatePulseControls();
     emit modeChanged( this->scope->trigger.mode );
 }
+
+void TriggerDock::setSingle( bool single ) {
+    QSignalBlocker blocker( singleCheckBox );
+    singleCheckBox->setChecked( single );
+    updatePulseControls();
+}
+
 
 void TriggerDock::setSlope( Dso::Slope slope ) {
     QSignalBlocker blocker( slopeComboBox );
@@ -200,7 +216,9 @@ void TriggerDock::setPulseTolerance( double percent ) {
 
 void TriggerDock::updatePulseControls() {
     const bool pulseMode = scope->trigger.mode == Dso::TriggerMode::PULSE;
+    const bool rollMode = scope->trigger.mode == Dso::TriggerMode::ROLL;
     const bool showTolerance = pulseMode && scope->trigger.pulseCondition == Dso::PulseWidthCondition::Equal;
+    singleCheckBox->setEnabled( !rollMode );
     slopeLabel->setVisible( !pulseMode );
     slopeComboBox->setVisible( !pulseMode );
     pulseWidthLabel->setVisible( pulseMode );

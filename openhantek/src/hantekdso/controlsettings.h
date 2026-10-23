@@ -35,6 +35,7 @@ struct ControlSettingsTrigger {
     double position = 0.0;                          ///< The current pretrigger position
     unsigned int point = 0;                         ///< The trigger position in Hantek coding
     Dso::TriggerMode mode = Dso::TriggerMode::AUTO; ///< The trigger mode
+    bool single = false;                            ///< Stop after the next trigger event
     Dso::Slope slope = Dso::Slope::Positive;        ///< The trigger slope
     unsigned int source = 0;                        ///< The trigger source
     bool smooth = false;                            ///< Don't trigger on glitches

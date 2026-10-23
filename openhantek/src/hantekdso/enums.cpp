@@ -4,7 +4,6 @@
 #include <QCoreApplication>
 
 namespace Dso {
-Enum< Dso::TriggerMode, Dso::TriggerMode::ROLL, Dso::TriggerMode::PULSE > TriggerModeEnum;
 Enum< Dso::Slope, Dso::Slope::Positive, Dso::Slope::Both > SlopeEnum;
 Enum< Dso::PulsePolarity, Dso::PulsePolarity::Positive, Dso::PulsePolarity::Both > PulsePolarityEnum;
 Enum< Dso::PulseWidthCondition, Dso::PulseWidthCondition::Equal, Dso::PulseWidthCondition::Less > PulseWidthConditionEnum;
@@ -50,8 +49,6 @@ QString triggerModeString( TriggerMode mode ) {
         return QCoreApplication::tr( "Auto" );
     case TriggerMode::NORMAL:
         return QCoreApplication::tr( "Normal" );
-    case TriggerMode::SINGLE:
-        return QCoreApplication::tr( "Single" );
     case TriggerMode::PULSE:
         return QCoreApplication::tr( "Pulse" );
     }

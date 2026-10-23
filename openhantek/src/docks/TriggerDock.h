@@ -34,6 +34,10 @@ class TriggerDock : public QDockWidget {
     /// \param mode The trigger mode.
     void setMode( Dso::TriggerMode mode );
 
+    /// \brief Enables/disables single-shot triggering.
+    /// \param single true to stop after the next trigger event.
+    void setSingle( bool single );
+
     /// \brief Changes the trigger source if the new source is supported.
     /// \param id The number of the channel, that should be used as trigger.
     /// \param smooth Don't trigger on glitches
@@ -71,6 +75,7 @@ class TriggerDock : public QDockWidget {
     QGridLayout *dockLayout;   ///< The main layout for the dock window
     QWidget *dockWidget;       ///< The main widget for the dock window
     QLabel *modeLabel;         ///< The label for the trigger mode combobox
+    QCheckBox *singleCheckBox; ///< Stop after the next trigger event
     QLabel *sourceLabel;       ///< The label for the trigger source combobox
     QLabel *slopeLabel;        ///< The label for the trigger slope combobox
     QLabel *pulseWidthLabel;   ///< The label for the pulse width spinbox
@@ -92,6 +97,7 @@ class TriggerDock : public QDockWidget {
 
   signals:
     void modeChanged( Dso::TriggerMode );               ///< The trigger mode has been changed
+    void singleChanged( bool );                         ///< The single-shot condition has been changed
     void sourceChanged( unsigned int id, bool smooth ); ///< The trigger source has been changed
     void slopeChanged( Dso::Slope );                    ///< The trigger slope has been changed
     void pulseWidthChanged( double );                    ///< The pulse trigger width has been changed

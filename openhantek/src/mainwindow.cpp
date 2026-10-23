@@ -196,6 +196,8 @@ MainWindow::MainWindow( HantekDsoControl *dsoControl, DsoSettings *settings, Exp
 
     connect( triggerDock, &TriggerDock::modeChanged, dsoControl, &HantekDsoControl::setTriggerMode );
     connect( triggerDock, &TriggerDock::modeChanged, dsoWidget, &DsoWidget::updateTriggerMode );
+    connect( triggerDock, &TriggerDock::singleChanged, dsoControl, &HantekDsoControl::setTriggerSingle );
+    connect( triggerDock, &TriggerDock::singleChanged, [this]() { dsoWidget->updateTriggerMode(); } );
     connect( triggerDock, &TriggerDock::modeChanged, [this]( Dso::TriggerMode mode ) {
         ui->actionRefresh->setEnabled( Dso::TriggerMode::ROLL == mode && dsoSettings->scope.horizontal.samplerate < 10e3 );
     } );

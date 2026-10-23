@@ -103,8 +103,18 @@ void DsoSettings::load() {
     storeSettings->endGroup(); // horizontal
     // Trigger
     storeSettings->beginGroup( "trigger" );
-    if ( storeSettings->contains( "mode" ) )
-        scope.trigger.mode = Dso::TriggerMode( storeSettings->value( "mode" ).toUInt() );
+    if ( storeSettings->contains( "mode" ) ) {
+        const unsigned mode = storeSettings->value( "mode" ).toUInt();
+        if ( mode == 3 ) { // old config stored SINGLE as a trigger mode
+            scope.trigger.mode = Dso::TriggerMode::AUTO;
+            scope.trigger.single = true;
+        } else if ( mode == unsigned( Dso::TriggerMode::ROLL ) || mode == unsigned( Dso::TriggerMode::AUTO ) ||
+                    mode == unsigned( Dso::TriggerMode::NORMAL ) || mode == unsigned( Dso::TriggerMode::PULSE ) ) {
+            scope.trigger.mode = Dso::TriggerMode( mode );
+        }
+    }
+    if ( storeSettings->contains( "single" ) )
+        scope.trigger.single = storeSettings->value( "single" ).toBool();
     if ( storeSettings->contains( "position" ) )
         scope.trigger.offset = storeSettings->value( "position" ).toDouble();
     if ( storeSettings->contains( "slope" ) )
@@ -305,6 +315,7 @@ void DsoSettings::save() {
     // Trigger
     storeSettings->beginGroup( "trigger" );
     storeSettings->setValue( "mode", unsigned( scope.trigger.mode ) );
+    storeSettings->setValue( "single", scope.trigger.single );
     storeSettings->setValue( "position", scope.trigger.offset );
     storeSettings->setValue( "slope", unsigned( scope.trigger.slope ) );
     storeSettings->setValue( "source", scope.trigger.source );
