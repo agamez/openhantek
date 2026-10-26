@@ -144,12 +144,19 @@ void Capturing::capture() {
     }
     if ( received != rawSamplesize ) {
         // qDebug() << "retval != rawSamplesize" << received << rawSamplesize;
+        if ( !transferWarning ) {
+            const QString message = QString( "USB sample loss: received %1 of %2 bytes" ).arg( received ).arg( rawSamplesize );
+            qWarning().noquote() << message;
+            emit hdc->statusMessage( message, 5000 );
+            transferWarning = true;
+        }
         auto end = dp->end();
         for ( auto it = dp->begin(); it != end; ++it )
             *it = 0x80; // fill with "zeros"
         valid = false;
         hdc->raw.rollMode = false;
     } else {
+        transferWarning = false;
         hdc->raw.rollMode = true; // one complete buffer available, start to roll
     }
     if ( !freeRun ) // in normal capturing mode transfer after capturing one block

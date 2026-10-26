@@ -154,8 +154,7 @@ Dso::ErrorCode HantekDsoControl::setRecordTime( double duration ) {
         double sRate = specification->fixedSampleRates[ iii ].samplerate;
         // qDebug() << "sampleIndex:" << sampleIndex << "sRate:" << sRate << "sRate*duration:" << sRate * duration;
         // Ensure that at least 1/2 of remaining samples are available for SW trigger algorithm
-        // for stability reason avoid the highest sample rate as default
-        if ( sRate < srLimit && sRate * duration <= sampleLimit ) {
+        if ( sRate <= srLimit && sRate * duration <= sampleLimit ) {
             sampleIndex = iii;
         }
     }
