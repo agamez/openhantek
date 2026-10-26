@@ -3,8 +3,12 @@
 #include <QApplication>
 #include <QCommandLineParser>
 #include <QDebug>
+#include <QDir>
+#include <QFile>
+#include <QFileInfo>
 #include <QLibraryInfo>
 #include <QLocale>
+#include <QRegularExpression>
 #include <QSurfaceFormat>
 #include <QTranslator>
 #ifdef Q_OS_LINUX
@@ -71,9 +75,76 @@
 
 using namespace Hantek;
 
+#ifdef Q_OS_LINUX
+static QString nvidiaKernelVersion() {
+    QFile file( "/proc/driver/nvidia/version" );
+    if ( !file.open( QIODevice::ReadOnly ) )
+        return {};
+    static const QRegularExpression versionRegex( R"(NVRM version:.*?\b(\d+\.\d+(?:\.\d+)?)\b)" );
+    const auto match = versionRegex.match( QString::fromLatin1( file.readAll() ) );
+    return match.hasMatch() ? match.captured( 1 ) : QString();
+}
+
+static QStringList glxLibraryDirectories() {
+    return {QLibraryInfo::location( QLibraryInfo::LibrariesPath ), "/usr/lib/x86_64-linux-gnu",
+            "/usr/lib64", "/usr/lib", "/usr/local/lib"};
+}
+
+static QString nvidiaGlxClientVersion() {
+    static const QRegularExpression versionRegex( R"(libGLX_nvidia\.so\.(\d+\.\d+(?:\.\d+)?))" );
+    for ( const QString &directory : glxLibraryDirectories() ) {
+        const QFileInfo library( QDir( directory ).filePath( "libGLX_nvidia.so.0" ) );
+        if ( !library.exists() )
+            continue;
+        const auto match = versionRegex.match( library.symLinkTarget() );
+        if ( match.hasMatch() )
+            return match.captured( 1 );
+    }
+    return {};
+}
+
+static bool hasMesaGlx() {
+    for ( const QString &directory : glxLibraryDirectories() ) {
+        if ( QFileInfo::exists( QDir( directory ).filePath( "libGLX_mesa.so.0" ) ) )
+            return true;
+    }
+    return false;
+}
+
+/// \brief Work around a mixed NVIDIA installation after a package upgrade.
+///
+/// The running kernel/GLX modules and the userspace GLX library can be left at
+/// different versions until the next reboot. In that state the NVIDIA GLX vendor
+/// cannot create an OpenGL context. Select Mesa's GLX vendor instead, but only
+/// when the versions really differ and the user did not request a specific vendor.
+static void useMesaGlxIfNvidiaIsMismatched() {
+    if ( !qEnvironmentVariableIsEmpty( "__GLX_VENDOR_LIBRARY_NAME" ) )
+        return;
+
+    const QString kernelVersion = nvidiaKernelVersion();
+    if ( kernelVersion.isEmpty() )
+        return;
+
+    const QString clientVersion = nvidiaGlxClientVersion();
+    if ( clientVersion.isEmpty() || clientVersion == kernelVersion )
+        return;
+
+    if ( !hasMesaGlx() )
+        return;
+
+    qWarning() << "NVIDIA kernel/GLX version mismatch:" << kernelVersion << "vs" << clientVersion
+               << "- using Mesa GLX";
+    qputenv( "__GLX_VENDOR_LIBRARY_NAME", "mesa" );
+}
+#endif
+
 
 /// \brief Initialize resources and translations and show the main window.
 int main( int argc, char *argv[] ) {
+#ifdef Q_OS_LINUX
+    useMesaGlxIfNvidiaIsMismatched();
+#endif
+
     //////// Set application information ////////
     QCoreApplication::setOrganizationName( "OpenHantek" );
     QCoreApplication::setOrganizationDomain( "openhantek.org" );
