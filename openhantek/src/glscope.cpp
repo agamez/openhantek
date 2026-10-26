@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0+
 
 #include <cmath>
+#include <cstdio>
 #include <iostream>
 
 #include <QColor>
@@ -67,11 +68,23 @@ GlScope::GlScope( DsoSettingsScope *scope, DsoSettingsView *view, QWidget *paren
     QOffscreenSurface surface;
     surface.create();
     QOpenGLContext context;
-    context.create();
-    context.makeCurrent( &surface );
-    QString glVersion = reinterpret_cast< const char * >( context.functions()->glGetString( GL_VERSION ) );
-    GLSLversion = glVersion >= "3.2" ? 150 : 120; // version string "3.2 xxxx" > "3.2" is true
-    // qDebug() << "OpenGL version" << glVersion << GLSLversion;
+    bool contextCurrent = false;
+    // surface.isValid() is not a reliable precondition here: with some drivers an
+    // offscreen surface reports invalid while makeCurrent() still succeeds.
+    // makeCurrent() fails safely, so let it decide.
+    if ( context.create() ) {
+        contextCurrent = context.makeCurrent( &surface );
+    }
+    if ( !contextCurrent ) {
+        // no current context: never call any OpenGL function here
+        qWarning() << "OpenGL context creation failed";
+        errorMessage = tr( "OpenGL initialization failed.\nPlease check your graphics driver." );
+    } else {
+        QString glVersion = reinterpret_cast< const char * >( context.functions()->glGetString( GL_VERSION ) );
+        GLSLversion = glVersion >= "3.2" ? 150 : 120; // version string "3.2 xxxx" > "3.2" is true
+        // qDebug() << "OpenGL version" << glVersion << GLSLversion;
+        context.doneCurrent();
+    }
     surface.destroy();
 
     cursorInfo.clear();
@@ -263,6 +276,11 @@ void GlScope::paintEvent( QPaintEvent *event ) {
     if ( shaderCompileSuccess ) {
         QOpenGLWidget::paintEvent( event );
     } else if ( !zoomed ) { // draw error message on normal view if OpenGL failed
+        static bool errorPrinted = false;
+        if ( !errorPrinted ) { // paintEvent runs continuously: print the error only once
+            fprintf( stderr, "%s", errorMessage.toUtf8().data() );
+            errorPrinted = true;
+        }
         QPainter painter( this );
         painter.setRenderHint( QPainter::Antialiasing, true );
         QFont font = painter.font();
