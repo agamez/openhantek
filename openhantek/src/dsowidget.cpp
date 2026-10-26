@@ -421,14 +421,14 @@ void DsoWidget::setupSliders( DsoWidget::Sliders &sliders ) {
 
     // The sliders for the trigger levels
     sliders.triggerLevelSlider = new LevelSlider( Qt::LeftArrow );
-    for ( ChannelID channel = 0; channel < spec->channels; ++channel ) {
+    for ( ChannelID channel = 0; channel < scope->voltage.size(); ++channel ) {
         sliders.triggerLevelSlider->addSlider( int( channel ) );
         sliders.triggerLevelSlider->setColor( channel, ( channel == scope->trigger.source )
                                                            ? view->colors->voltage[ channel ]
                                                            : view->colors->voltage[ channel ].darker() );
         adaptTriggerLevelSlider( sliders, channel );
         sliders.triggerLevelSlider->setValue( int( channel ), scope->voltage[ channel ].trigger );
-        sliders.triggerLevelSlider->setIndexVisible( channel, scope->voltage[ channel ].used );
+        sliders.triggerLevelSlider->setIndexVisible( channel, scope->voltage[ channel ].used || channel == scope->trigger.source );
     }
 
     // The marker slider
@@ -805,7 +805,7 @@ void DsoWidget::updateTriggerSource() {
     mainSliders.triggerPositionSlider->setColor( 0, view->colors->voltage[ scope->trigger.source ] );
     zoomSliders.triggerPositionSlider->setColor( 0, view->colors->voltage[ scope->trigger.source ] );
 
-    for ( ChannelID channel = 0; channel < spec->channels; ++channel ) {
+    for ( ChannelID channel = 0; channel < scope->voltage.size(); ++channel ) {
         QColor color =
             ( channel == scope->trigger.source ) ? view->colors->voltage[ channel ] : view->colors->voltage[ channel ].darker();
         mainSliders.triggerLevelSlider->setColor( channel, color );
@@ -856,8 +856,8 @@ void DsoWidget::updateVoltageUsed( ChannelID channel, bool used ) {
     mainSliders.voltageOffsetSlider->setIndexVisible( channel, used );
     zoomSliders.voltageOffsetSlider->setIndexVisible( channel, used );
 
-    mainSliders.triggerLevelSlider->setIndexVisible( channel, used );
-    zoomSliders.triggerLevelSlider->setIndexVisible( channel, used );
+    mainSliders.triggerLevelSlider->setIndexVisible( channel, used || channel == scope->trigger.source );
+    zoomSliders.triggerLevelSlider->setIndexVisible( channel, used || channel == scope->trigger.source );
 
     setMeasurementVisible( channel );
     updateVoltageDetails( channel );
@@ -1140,13 +1140,13 @@ void DsoWidget::updateSlidersSettings() {
         mainSliders.triggerLevelSlider->setColor( channel, ( channel == scope->trigger.source )
                                                                ? view->colors->voltage[ channel ]
                                                                : view->colors->voltage[ channel ].darker() );
-        mainSliders.triggerLevelSlider->setIndexVisible( channel, scope->voltage[ channel ].used );
+        mainSliders.triggerLevelSlider->setIndexVisible( channel, scope->voltage[ channel ].used || channel == scope->trigger.source );
         zoomSliders.triggerLevelSlider->setValue( int( channel ), scope->voltage[ channel ].trigger );
         adaptTriggerLevelSlider( zoomSliders, channel );
         zoomSliders.triggerLevelSlider->setColor( channel, ( channel == scope->trigger.source )
                                                                ? view->colors->voltage[ channel ]
                                                                : view->colors->voltage[ channel ].darker() );
-        zoomSliders.triggerLevelSlider->setIndexVisible( channel, scope->voltage[ channel ].used );
+        zoomSliders.triggerLevelSlider->setIndexVisible( channel, scope->voltage[ channel ].used || channel == scope->trigger.source );
     }
     updateTriggerDetails();
 

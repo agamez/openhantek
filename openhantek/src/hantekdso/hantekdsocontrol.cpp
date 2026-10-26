@@ -19,6 +19,7 @@
 
 #include "hantekdsocontrol.h"
 #include "hantekprotocol/controlStructs.h"
+#include "post/postprocessingsettings.h"
 #include "scopesettings.h"
 #include "usb/scopedevice.h"
 
@@ -29,6 +30,7 @@ using namespace Dso;
 HantekDsoControl::HantekDsoControl( ScopeDevice *device, const DSOModel *model )
     : scopeDevice( device ), model( model ), specification( model->spec() ),
       controlsettings( &( specification->samplerate.single ), specification->channels ) {
+    controlsettings.trigger.level.resize( specification->channels + 1 );
     qRegisterMetaType< DSOsamples * >();
 
     if ( device && specification->fixedUSBinLength )
@@ -194,9 +196,11 @@ Dso::ErrorCode HantekDsoControl::setChannelUsed( ChannelID channel, bool used ) 
     UsedChannels usedChannels = UsedChannels::USED_CH1;
     controlsettings.channelCount = 1;
 
-    if ( controlsettings.voltage[ 1 ].used ) {
+    const bool mathTrigger = mathTriggerSource();
+    const bool channel1Used = controlsettings.voltage[ 1 ].used || mathTrigger;
+    if ( channel1Used ) {
         controlsettings.channelCount = 2;
-        if ( controlsettings.voltage[ 0 ].used ) {
+        if ( controlsettings.voltage[ 0 ].used || mathTrigger ) {
             usedChannels = UsedChannels::USED_CH1CH2;
         } else {
             usedChannels = UsedChannels::USED_CH2;
@@ -324,9 +328,15 @@ Dso::ErrorCode HantekDsoControl::setTriggerSingle( bool single ) {
 Dso::ErrorCode HantekDsoControl::setTriggerSource( ChannelID channel, bool smooth ) {
     if ( deviceNotConnected() )
         return Dso::ErrorCode::CONNECTION;
+    if ( channel > specification->channels )
+        return Dso::ErrorCode::PARAMETER;
+    const bool wasMathTrigger = mathTriggerSource();
     // printf("setTriggerSource( %d, %d )\n", channel, smooth);
     controlsettings.trigger.source = channel;
     controlsettings.trigger.smooth = smooth;
+    if ( wasMathTrigger || mathTriggerSource() ) {
+        setChannelUsed( 0, controlsettings.voltage[ 0 ].used );
+    }
     newTriggerParam = true;
     return Dso::ErrorCode::NONE;
 }
@@ -336,7 +346,7 @@ Dso::ErrorCode HantekDsoControl::setTriggerSource( ChannelID channel, bool smoot
 Dso::ErrorCode HantekDsoControl::setTriggerLevel( ChannelID channel, double level ) {
     if ( deviceNotConnected() )
         return Dso::ErrorCode::CONNECTION;
-    if ( channel >= specification->channels )
+    if ( channel > specification->channels )
         return Dso::ErrorCode::PARAMETER;
     // printf("setTriggerLevel( %d, %g )\n", channel, level);
     controlsettings.trigger.level[ channel ] = level;
@@ -415,6 +425,7 @@ void HantekDsoControl::applySettings( DsoSettingsScope *dsoSettingsScope ) {
         setChannelInverted( channel, dsoSettingsScope->voltage[ channel ].inverted );
         setCoupling( channel, Dso::Coupling( dsoSettingsScope->voltage[ channel ].couplingOrMathIndex ) );
     }
+    setTriggerLevel( specification->channels, dsoSettingsScope->voltage[ specification->channels ].trigger );
 
     setRecordTime( dsoSettingsScope->horizontal.timebase * DIVS_TIME );
     setCalFreq( dsoSettingsScope->horizontal.calfreq );
@@ -588,6 +599,61 @@ void HantekDsoControl::convertRawDataToSamples() {
 }
 
 
+bool HantekDsoControl::buildMathTriggerSamples() {
+    mathTriggerData.clear();
+    if ( !scope || result.data.size() < 2 )
+        return false;
+
+    const unsigned mathChannel = specification->channels;
+    if ( mathChannel >= scope->voltage.size() )
+        return false;
+    const std::vector< double > &ch1 = result.data[ 0 ];
+    const std::vector< double > &ch2 = result.data[ 1 ];
+    const size_t count = std::min( ch1.size(), ch2.size() );
+    if ( !count )
+        return false;
+
+    mathTriggerData.resize( count );
+    const Dso::MathMode mode = Dso::getMathMode( scope->voltage[ mathChannel ] );
+    const double sign = scope->voltage[ mathChannel ].inverted ? -1.0 : 1.0;
+    if ( mode == Dso::MathMode::AC_CH1 || mode == Dso::MathMode::AC_CH2 ) {
+        const std::vector< double > &source = mode == Dso::MathMode::AC_CH1 ? ch1 : ch2;
+        double average = 0.0;
+        for ( double sample : source )
+            average += sample;
+        average /= source.size();
+        for ( size_t index = 0; index < count; ++index )
+            mathTriggerData[ index ] = sign * ( source[ index ] - average );
+        return true;
+    }
+
+    for ( size_t index = 0; index < count; ++index ) {
+        switch ( mode ) {
+        case Dso::MathMode::ADD_CH1_CH2:
+            mathTriggerData[ index ] = sign * ( ch1[ index ] + ch2[ index ] );
+            break;
+        case Dso::MathMode::SUB_CH2_FROM_CH1:
+            mathTriggerData[ index ] = sign * ( ch1[ index ] - ch2[ index ] );
+            break;
+        case Dso::MathMode::SUB_CH1_FROM_CH2:
+            mathTriggerData[ index ] = sign * ( ch2[ index ] - ch1[ index ] );
+            break;
+        case Dso::MathMode::MUL_CH1_CH2:
+            mathTriggerData[ index ] = sign * ch1[ index ] * ch2[ index ];
+            break;
+        default:
+            return false;
+        }
+    }
+    return true;
+}
+
+
+const std::vector< double > &HantekDsoControl::triggerSamples() const {
+    return mathTriggerSource() ? mathTriggerData : result.data[ controlsettings.trigger.source ];
+}
+
+
 // search for trigger point from defined point, default startPos = 0;
 unsigned HantekDsoControl::searchTriggerPoint( Dso::Slope dsoSlope, unsigned int startPos ) {
     int slope;
@@ -599,12 +665,12 @@ unsigned HantekDsoControl::searchTriggerPoint( Dso::Slope dsoSlope, unsigned int
         return 0;
 
     ChannelID channel = controlsettings.trigger.source;
-    const std::vector< double > &samples = result.data[ channel ];
+    const std::vector< double > &samples = triggerSamples();
     unsigned sampleCount = unsigned( samples.size() ); ///< number of available samples
     // printf("searchTriggerPoint( %d, %d )\n", (int)dsoSlope, startPos );
     if ( startPos >= sampleCount )
         return 0;
-    double level = controlsettings.trigger.level[ channel ];
+    double level = mathTriggerSource() ? scope->voltage[ channel ].trigger : controlsettings.trigger.level[ channel ];
     double timeDisplay = controlsettings.samplerate.target.duration; // time for full screen width
     double sampleRate = controlsettings.samplerate.current;
     double samplesDisplay = timeDisplay * sampleRate;
@@ -709,8 +775,10 @@ unsigned HantekDsoControl::searchPulseTriggerPoint( Dso::Slope leadingSlope, dou
 unsigned HantekDsoControl::searchTriggeredPosition() {
     static Dso::Slope nextSlope = Dso::Slope::Positive; // for alternating slope mode X
     ChannelID channel = controlsettings.trigger.source;
+    const bool mathTrigger = mathTriggerSource();
     // Trigger channel not in use
-    if ( !controlsettings.voltage[ channel ].used || result.data.empty() ) {
+    if ( ( !mathTrigger && ( channel >= controlsettings.voltage.size() || !controlsettings.voltage[ channel ].used ) ) || result.data.empty() ||
+         ( mathTrigger && !buildMathTriggerSamples() ) ) {
         return result.triggeredPosition = 0;
     }
     // printf( "HDC::searchTriggeredPosition()\n" );
@@ -718,7 +786,7 @@ unsigned HantekDsoControl::searchTriggeredPosition() {
     double pulseWidth1 = 0.0;
     double pulseWidth2 = 0.0;
 
-    size_t sampleCount = result.data[ channel ].size();              // number of available samples
+    size_t sampleCount = triggerSamples().size();                     // number of available samples
     double timeDisplay = controlsettings.samplerate.target.duration; // time for full screen width
     double sampleRate = result.samplerate;                           //
     double samplesDisplay = timeDisplay * controlsettings.samplerate.current;

@@ -163,6 +163,10 @@ class HantekDsoControl : public QObject {
     /// \brief Update the minimum and maximum supported samplerate.
     void updateSamplerateLimits();
 
+    bool mathTriggerSource() const { return controlsettings.trigger.source == specification->channels; }
+    bool buildMathTriggerSamples();
+    const std::vector< double > &triggerSamples() const;
+
     unsigned searchTriggerPoint( Dso::Slope dsoSlope, unsigned int startPos = 0 );
 
     bool pulseWidthMatches( double width ) const;
@@ -197,6 +201,7 @@ class HantekDsoControl : public QObject {
     // Results
     unsigned downsamplingNumber = 1; ///< Number of downsamples to reduce sample rate
     DSOsamples result;
+    std::vector< double > mathTriggerData;
     unsigned expectedSampleCount = 0; ///< The expected total number of samples at
                                       /// the last check before sampling started
     bool capturing = false;

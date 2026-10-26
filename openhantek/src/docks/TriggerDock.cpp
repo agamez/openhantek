@@ -26,9 +26,11 @@ TriggerDock::TriggerDock( DsoSettingsScope *scope, const Dso::ControlSpecificati
     // Initialize lists for comboboxes
     for ( ChannelID channel = 0; channel < mSpec->channels; ++channel )
         this->sourceStandardStrings << tr( "CH%1" ).arg( channel + 1 );
+    this->sourceStandardStrings << tr( "MATH" );
     // add "smooth" source
     for ( ChannelID channel = 0; channel < mSpec->channels; ++channel )
         this->sourceStandardStrings << tr( "CH%1 smooth" ).arg( channel + 1 );
+    this->sourceStandardStrings << tr( "MATH smooth" );
 
     // Initialize elements
     modeLabel = new QLabel( tr( "Mode" ) );
@@ -114,11 +116,12 @@ TriggerDock::TriggerDock( DsoSettingsScope *scope, const Dso::ControlSpecificati
         emit slopeChanged( this->scope->trigger.slope );
     } );
     connect( sourceComboBox, static_cast< void ( QComboBox::* )( int ) >( &QComboBox::currentIndexChanged ),
-             [this]( unsigned index ) {
-                 bool smooth = index >= mSpec->channels;
-                 this->scope->trigger.smooth = smooth;
-                 this->scope->trigger.source = index & ( mSpec->channels - 1 );
-                 emit sourceChanged( index & ( mSpec->channels - 1 ), smooth );
+              [this]( unsigned index ) {
+                  const unsigned sourceCount = mSpec->channels + 1;
+                  bool smooth = index >= sourceCount;
+                  this->scope->trigger.smooth = smooth;
+                  this->scope->trigger.source = index % sourceCount;
+                  emit sourceChanged( index % sourceCount, smooth );
              } );
     connect( pulseWidthSiSpinBox, static_cast< void ( QDoubleSpinBox::* )( double ) >( &QDoubleSpinBox::valueChanged ),
              [this]( double width ) {
@@ -186,7 +189,7 @@ void TriggerDock::setSlope( Dso::Slope slope ) {
 
 void TriggerDock::setSource( int id, bool smooth ) {
     if ( smooth )
-        id += mSpec->channels;
+        id += mSpec->channels + 1;
     if ( id >= this->sourceStandardStrings.count() )
         return;
     QSignalBlocker blocker( sourceComboBox );
