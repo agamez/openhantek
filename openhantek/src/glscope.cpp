@@ -511,6 +511,9 @@ void GlScope::paintGL() {
 
     m_program->bind();
 
+    if ( gridDirty )
+        generateGrid();
+
     // Apply zoom settings via matrix transformation
     if ( zoomed ) {
         QMatrix4x4 m;
@@ -521,11 +524,36 @@ void GlScope::paintGL() {
 
     drawMarkers();
 
+    // Keep the normal ten-division grid in Full record mode. The captured trace
+    // is scaled to the selected ten-division window instead.
+    const bool navigateFullRecord = !zoomed && scope->horizontal.format == Dso::GraphFormat::TY && scope->horizontal.fullRecord &&
+                                    fullRecordDivisions > DIVS_TIME;
+    if ( navigateFullRecord ) {
+        const double scale = fullRecordDivisions / DIVS_TIME;
+        const double visibleSpan = DIVS_TIME / scale;
+        const double left = MARGIN_LEFT + fullRecordPosition * ( DIVS_TIME - visibleSpan );
+        QMatrix4x4 m;
+        m.scale( GLfloat( scale ), 1.0f, 1.0f );
+        m.translate( -GLfloat( left + visibleSpan / 2.0 ), 0.0f, 0.0f );
+        m_program->setUniformValue( matrixLocation, pmvMatrix * m );
+    }
+
     unsigned historyIndex = 0;
     for ( Graph &graph : m_GraphHistory ) {
         for ( ChannelID channel = 0; channel < scope->voltage.size(); ++channel ) {
             if ( scope->horizontal.format == Dso::GraphFormat::TY ) {
+                if ( navigateFullRecord )
+                    m_program->setUniformValue( matrixLocation, pmvMatrix );
                 drawSpectrumChannelGraph( channel, graph, int( historyIndex ) );
+                if ( navigateFullRecord ) {
+                    const double scale = fullRecordDivisions / DIVS_TIME;
+                    const double visibleSpan = DIVS_TIME / scale;
+                    const double left = MARGIN_LEFT + fullRecordPosition * ( DIVS_TIME - visibleSpan );
+                    QMatrix4x4 m;
+                    m.scale( GLfloat( scale ), 1.0f, 1.0f );
+                    m.translate( -GLfloat( left + visibleSpan / 2.0 ), 0.0f, 0.0f );
+                    m_program->setUniformValue( matrixLocation, pmvMatrix * m );
+                }
                 if ( scope->histogram ) {
                     drawHistogramChannelGraph( channel, graph, int( historyIndex ) );
                 }
@@ -535,7 +563,7 @@ void GlScope::paintGL() {
         ++historyIndex;
     }
 
-    if ( zoomed ) {
+    if ( zoomed || navigateFullRecord ) {
         m_program->setUniformValue( matrixLocation, pmvMatrix );
     }
 
@@ -581,6 +609,29 @@ void GlScope::draw4Cross( std::vector< QVector3D > &va, int section, float x, fl
     }
 }
 
+void GlScope::setTimeDivisions( double divisions ) {
+    if ( !std::isfinite( divisions ) || divisions < 1.0 )
+        divisions = DIVS_TIME;
+    if ( std::fabs( divisions - timeDivisions ) < 1e-9 )
+        return;
+    timeDivisions = divisions;
+    gridDirty = true;
+    update();
+}
+
+
+void GlScope::setFullRecordNavigation( double divisions, double position ) {
+    if ( !std::isfinite( divisions ) || divisions < DIVS_TIME )
+        divisions = DIVS_TIME;
+    position = qBound( 0.0, position, 1.0 );
+    if ( std::fabs( divisions - fullRecordDivisions ) < 1e-9 && std::fabs( position - fullRecordPosition ) < 1e-9 )
+        return;
+    fullRecordDivisions = divisions;
+    fullRecordPosition = position;
+    update();
+}
+
+
 // prepare the static grid structure that is shown by 'drawGrid()'
 // show a line as long as the trigger level marker is clicked or moved
 // index: channel, value: trigger level, pressed: marker is activated
@@ -612,28 +663,42 @@ void GlScope::generateGrid( int index, double value, bool pressed ) {
         program->setAttributeBuffer( vertexLocation, GL_FLOAT, 0, 3, 0 );
     }
 
+    // The screen always keeps its physical width, but the number of horizontal
+    // divisions can change (e.g. Full record shows more divisions at the selected
+    // timebase instead of changing the timebase itself). Anchor the grid at the
+    // left margin and draw one line per logical division.
+    const double divisions = std::min( std::max( timeDivisions, 1.0 ), 1e7 );
+    const double divWidth = DIVS_TIME / divisions;
+    const double subWidth = divWidth / DIVS_SUB;
+    // Keep the grid readable and cheap to draw at very fast timebases, where the
+    // complete record can require thousands of divisions. At the usual 10/20
+    // divisions every line is drawn.
+    const int majorStride = std::max( 1, int( std::ceil( divisions / 100.0 ) ) );
+    const int subStride = std::max( 1, int( std::ceil( 0.1 / subWidth ) ) );
+    const int majorCount = int( std::floor( divisions + 1e-9 ) );
+    const int subCount = int( std::floor( divisions * DIVS_SUB + 1e-9 ) );
+
     // Draw vertical dot lines
-    for ( int vDiv = 1; vDiv < DIVS_TIME / 2; ++vDiv ) {
+    for ( int vDiv = 1; vDiv < majorCount; vDiv += majorStride ) {
+        const double x = MARGIN_LEFT + vDiv * divWidth;
+        if ( std::fabs( x ) < 1e-9 || x >= MARGIN_RIGHT - 1e-9 )
+            continue; // axis and border are drawn separately
         for ( int dot = 1; dot < DIVS_VOLTAGE / 2 * DIVS_SUB; ++dot ) {
             float dotPosition = float( dot ) / DIVS_SUB;
-            gridDrawCounts[ item ] += 4;
-            vaGrid.push_back( QVector3D( -vDiv, -dotPosition, 0 ) );
-            vaGrid.push_back( QVector3D( -vDiv, dotPosition, 0 ) );
-            vaGrid.push_back( QVector3D( vDiv, -dotPosition, 0 ) );
-            vaGrid.push_back( QVector3D( vDiv, dotPosition, 0 ) );
+            gridDrawCounts[ item ] += 2;
+            vaGrid.push_back( QVector3D( float( x ), -dotPosition, 0 ) );
+            vaGrid.push_back( QVector3D( float( x ), dotPosition, 0 ) );
         }
     }
     // Draw horizontal dot lines
     for ( int hDiv = 1; hDiv < DIVS_VOLTAGE / 2; ++hDiv ) {
-        for ( int dot = 1; dot < DIVS_TIME / 2 * DIVS_SUB; ++dot ) {
-            if ( dot % DIVS_SUB == 0 )
-                continue; // Already done by vertical lines
-            float dotPosition = float( dot ) / DIVS_SUB;
-            gridDrawCounts[ item ] += 4;
-            vaGrid.push_back( QVector3D( -dotPosition, -hDiv, 0 ) );
-            vaGrid.push_back( QVector3D( dotPosition, -hDiv, 0 ) );
-            vaGrid.push_back( QVector3D( -dotPosition, hDiv, 0 ) );
-            vaGrid.push_back( QVector3D( dotPosition, hDiv, 0 ) );
+        for ( int dot = 1; dot < subCount; dot += subStride ) {
+            const double x = MARGIN_LEFT + dot * subWidth;
+            if ( std::fabs( x ) < 1e-9 || x >= MARGIN_RIGHT - 1e-9 )
+                continue;
+            gridDrawCounts[ item ] += 2;
+            vaGrid.push_back( QVector3D( float( x ), -hDiv, 0 ) );
+            vaGrid.push_back( QVector3D( float( x ), hDiv, 0 ) );
         }
     }
 
@@ -658,13 +723,13 @@ void GlScope::generateGrid( int index, double value, bool pressed ) {
     vaGrid.push_back( QVector3D( 0, -DIVS_VOLTAGE / 2, 0 ) );
     vaGrid.push_back( QVector3D( 0, DIVS_VOLTAGE / 2, 0 ) );
     // Subdiv lines on horizontal axis
-    for ( int line = 1; line < DIVS_TIME / 2 * DIVS_SUB; ++line ) {
-        float linePosition = float( line ) / DIVS_SUB;
-        gridDrawCounts[ item ] += 4;
-        vaGrid.push_back( QVector3D( linePosition, -0.05f, 0 ) );
-        vaGrid.push_back( QVector3D( linePosition, 0.05f, 0 ) );
-        vaGrid.push_back( QVector3D( -linePosition, -0.05f, 0 ) );
-        vaGrid.push_back( QVector3D( -linePosition, 0.05f, 0 ) );
+    for ( int line = 1; line < subCount; line += subStride ) {
+        const double position = MARGIN_LEFT + line * subWidth;
+        if ( std::fabs( position ) < 1e-9 || position >= MARGIN_RIGHT - 1e-9 )
+            continue;
+        gridDrawCounts[ item ] += 2;
+        vaGrid.push_back( QVector3D( float( position ), -0.05f, 0 ) );
+        vaGrid.push_back( QVector3D( float( position ), 0.05f, 0 ) );
     }
     // Subdiv lines on vertical axis
     for ( int line = 1; line < DIVS_VOLTAGE / 2 * DIVS_SUB; ++line ) {
@@ -676,18 +741,13 @@ void GlScope::generateGrid( int index, double value, bool pressed ) {
         vaGrid.push_back( QVector3D( 0.05f, -linePosition, 0 ) );
     }
 
-    // Draw vertical cross lines
-    for ( int vDiv = 1; vDiv < DIVS_TIME / 2; ++vDiv ) {
+    // Draw crosses at the major grid intersections
+    for ( int vDiv = 1; vDiv < majorCount; vDiv += majorStride ) {
+        const double x = MARGIN_LEFT + vDiv * divWidth;
+        if ( std::fabs( x ) < 1e-9 || x >= MARGIN_RIGHT - 1e-9 )
+            continue;
         for ( int hDiv = 1; hDiv < DIVS_VOLTAGE / 2; ++hDiv ) {
-            draw4Cross( vaGrid, 1, vDiv, hDiv );
-        }
-    }
-    // Draw horizontal cross lines
-    for ( int hDiv = 1; hDiv < DIVS_VOLTAGE / 2; ++hDiv ) {
-        for ( int vDiv = 1; vDiv < DIVS_TIME / 2; ++vDiv ) {
-            if ( vDiv % DIVS_SUB == 0 )
-                continue; // Already done by vertical lines
-            draw4Cross( vaGrid, 1, vDiv, hDiv );
+            draw4Cross( vaGrid, 1, float( x ), hDiv );
         }
     }
 
@@ -730,6 +790,7 @@ void GlScope::generateGrid( int index, double value, bool pressed ) {
 
     m_grid.allocate( &vaGrid[ 0 ], int( vaGrid.size() * sizeof( QVector3D ) ) );
     m_grid.release();
+    gridDirty = false;
 }
 
 
@@ -816,7 +877,11 @@ void GlScope::drawVoltageChannelGraph( ChannelID channel, Graph &graph, int hist
     Graph::VaoCount &v = graph.vaoVoltage[ channel ];
 
     QOpenGLVertexArrayObject::Binder b( v.first );
-    const GLenum dMode = ( view->interpolation == Dso::INTERPOLATION_OFF ) ? GL_POINTS : GL_LINE_STRIP;
+    GLenum dMode = GL_LINE_STRIP;
+    if ( view->interpolation == Dso::INTERPOLATION_OFF )
+        dMode = GL_POINTS;
+    else if ( scope->horizontal.fullRecord )
+        dMode = GL_LINES; // full-record traces are stored as independent segments
     context()->functions()->glDrawArrays( dMode, 0, v.second );
 }
 

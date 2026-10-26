@@ -15,6 +15,7 @@
 #include "glscopegraph.h"
 #include "hantekdso/enums.h"
 #include "hantekprotocol/types.h"
+#include "viewconstants.h"
 
 struct DsoSettingsView;
 struct DsoSettingsScope;
@@ -47,6 +48,8 @@ class GlScope : public QOpenGLWidget {
         updateCursor( index );
     }
     void generateGrid( int index = -1, double value = 0.0, bool pressed = false );
+    void setTimeDivisions( double divisions );
+    void setFullRecordNavigation( double divisions, double position );
 
   protected:
     /// \brief Initializes the scope widget.
@@ -116,6 +119,10 @@ class GlScope : public QOpenGLWidget {
     static const int gridItems = 4;
     QOpenGLVertexArrayObject m_vaoGrid[ gridItems ];
     GLsizei gridDrawCounts[ gridItems ];
+    double timeDivisions = DIVS_TIME; ///< Number of horizontal divisions shown on screen
+    bool gridDirty = false;           ///< Rebuild the static grid after a division change
+    double fullRecordDivisions = DIVS_TIME;
+    double fullRecordPosition = 0.5;
     void draw4Cross( std::vector< QVector3D > &va, int section, float x, float y );
     QColor triggerLineColor = QColor( "black" );
 

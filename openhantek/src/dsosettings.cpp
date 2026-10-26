@@ -96,6 +96,10 @@ void DsoSettings::load() {
         scope.horizontal.acquireInterval = storeSettings->value( "acquireInterval" ).toDouble();
     if ( storeSettings->contains( "recordLength" ) )
         scope.horizontal.recordLength = storeSettings->value( "recordLength" ).toUInt();
+    if ( storeSettings->contains( "fullRecord" ) )
+        scope.horizontal.fullRecord = storeSettings->value( "fullRecord" ).toBool();
+    if ( storeSettings->contains( "recordPosition" ) )
+        scope.horizontal.recordPosition = qBound( 0.0, storeSettings->value( "recordPosition" ).toDouble(), 1.0 );
     if ( storeSettings->contains( "samplerate" ) )
         scope.horizontal.samplerate = storeSettings->value( "samplerate" ).toDouble();
     if ( storeSettings->contains( "calfreq" ) )
@@ -309,6 +313,8 @@ void DsoSettings::save() {
     storeSettings->setValue( "maxTimebase", scope.horizontal.maxTimebase );
     storeSettings->setValue( "acquireInterval", scope.horizontal.acquireInterval );
     storeSettings->setValue( "recordLength", scope.horizontal.recordLength );
+    storeSettings->setValue( "fullRecord", scope.horizontal.fullRecord );
+    storeSettings->setValue( "recordPosition", scope.horizontal.recordPosition );
     storeSettings->setValue( "samplerate", scope.horizontal.samplerate );
     storeSettings->setValue( "calfreq", scope.horizontal.calfreq );
     storeSettings->endGroup(); // horizontal

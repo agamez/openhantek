@@ -2,6 +2,7 @@
 
 #include <QDebug>
 #include <QMutex>
+#include <cmath>
 #include <exception>
 #include <math.h>
 
@@ -67,14 +68,32 @@ void GraphGenerator::generateGraphsTYvoltage( PPresult *result ) {
 
         // time distance between sampling points
         double horizontalFactor = ( samples.interval / scope->horizontal.timebase );
-        // printf( "hF: %g\n", horizontalFactor );
         unsigned dotsOnScreen = unsigned( ceil( DIVS_TIME / horizontalFactor ) );
         unsigned preTrigSamples = unsigned( scope->trigger.offset * dotsOnScreen );
-        // align displayed trace with trigger mark on screen ...
-        // ... also if trig pos or time/div was changed on a "frozen" or single trace
         int leftmostSample = int( result->triggeredPosition );
-        if ( leftmostSample )                   // adjust position if triggered, else start from sample[0]
+        unsigned fullRecordStart = 0;
+        if ( scope->horizontal.fullRecord ) {
+            // Stretch the complete capture over the full screen width and rotate it so the
+            // trigger stays at the configured screen position. Trigger search and Single-shot
+            // behavior are unchanged; only the displayed record window is different.
+            dotsOnScreen = unsigned( samples.sample.size() );
+            horizontalFactor = DIVS_TIME / double( dotsOnScreen );
+            preTrigSamples = 0;
+            leftmostSample = 0;
+            if ( result->triggeredPosition && dotsOnScreen ) {
+                // Record navigation is centered on the trigger. The selected display
+                // window may later move through the record, but its initial position
+                // shows both the capture and the trigger symmetrically.
+                const long long offsetSamples = ( long long )( double( dotsOnScreen ) / 2.0 + 0.5 );
+                long long start = ( long long )result->triggeredPosition - offsetSamples;
+                start %= ( long long )dotsOnScreen;
+                if ( start < 0 )
+                    start += ( long long )dotsOnScreen;
+                fullRecordStart = unsigned( start );
+            }
+        } else if ( leftmostSample ) {          // adjust position if triggered, else start from sample[0]
             leftmostSample -= preTrigSamples;   // shift samples to show a stable trace
+        }
         int leftmostPosition = 0;               // start position on display
         if ( leftmostSample < 0 ) {             // trig pos or time/div was increased
             leftmostPosition = -leftmostSample; // trace can't start on left margin
@@ -83,31 +102,68 @@ void GraphGenerator::generateGraphsTYvoltage( PPresult *result ) {
 
         const unsigned binsPerDiv = 50;
 
-        // Set size directly to avoid reallocations (n+1 dots to display n lines)
-        graphVoltage.reserve( ++dotsOnScreen );
+        // Set size directly to avoid reallocations
+        graphVoltage.reserve( scope->horizontal.fullRecord ? 2 * dotsOnScreen : dotsOnScreen + 1 );
         graphHistogram.reserve( int( 2 * ( binsPerDiv * DIVS_VOLTAGE ) ) );
 
         const double gain = scope->gain( channel );
         const double offset = scope->voltage[ channel ].offset;
 
-        auto sampleIterator = samples.sample.cbegin() + leftmostSample; // -> visible samples
-        auto sampleEnd = samples.sample.cend();
-        // printf("samples: %lu, dotsOnScreen: %d\n", samples.sample.size(), dotsOnScreen);
         graphVoltage.clear();   // remove all previous dots and fill in new trace
         graphHistogram.clear(); // remove all previous dots and fill in new trace
         unsigned bins[ int( binsPerDiv * DIVS_VOLTAGE ) ] = {0};
-        for ( unsigned int position = unsigned( leftmostPosition ); position < dotsOnScreen && sampleIterator < sampleEnd;
-              ++position, ++sampleIterator ) {
-            double x = double( MARGIN_LEFT + position * horizontalFactor );
-            double y = *sampleIterator / gain + offset;
-            if ( !scope->histogram ) { // show complete trace
-                graphVoltage.push_back( QVector3D( float( x ), float( y ), 0.0f ) );
-            } else { // histogram replaces trace in rightmost div
-                int bin = int( round( binsPerDiv * ( y + DIVS_VOLTAGE / 2 ) ) );
-                if ( bin > 0 && bin < binsPerDiv * DIVS_VOLTAGE ) // if trace is on screen
-                    ++bins[ bin ];                                // count value
-                if ( x < MARGIN_RIGHT - 1.1 ) {                   // show trace unless in last div + 10% margin
+        if ( scope->horizontal.fullRecord ) {
+            auto countBin = [&]( double y ) {
+                if ( scope->histogram ) {
+                    int bin = int( round( binsPerDiv * ( y + DIVS_VOLTAGE / 2 ) ) );
+                    if ( bin > 0 && bin < binsPerDiv * DIVS_VOLTAGE ) // if trace is on screen
+                        ++bins[ bin ];                                // count value
+                }
+            };
+            auto sampleAt = [&]( unsigned position ) -> double {
+                unsigned index = fullRecordStart + position;
+                if ( index >= dotsOnScreen )
+                    index -= dotsOnScreen;
+                return samples.sample[ index ] / gain + offset;
+            };
+            double prevX = MARGIN_LEFT;
+            double prevY = sampleAt( 0 );
+            unsigned prevIndex = fullRecordStart;
+            countBin( prevY );
+            for ( unsigned int position = 1; position < dotsOnScreen; ++position ) {
+                const unsigned int index = prevIndex + 1 < dotsOnScreen ? prevIndex + 1 : 0;
+                const double x = double( MARGIN_LEFT + position * horizontalFactor );
+                const double y = sampleAt( position );
+                countBin( y );
+                // Do not connect the last sample of the capture with the first one; the
+                // circular record wraps there and a connecting line would be misleading.
+                if ( !( prevIndex == dotsOnScreen - 1 && index == 0 ) ) {
+                    if ( !scope->histogram || x < MARGIN_RIGHT - 1.1 ) {
+                        graphVoltage.push_back( QVector3D( float( prevX ), float( prevY ), 0.0f ) );
+                        graphVoltage.push_back( QVector3D( float( x ), float( y ), 0.0f ) );
+                    }
+                }
+                prevX = x;
+                prevY = y;
+                prevIndex = index;
+            }
+        } else {
+            auto sampleIterator = samples.sample.cbegin() + leftmostSample; // -> visible samples
+            auto sampleEnd = samples.sample.cend();
+            // printf("samples: %lu, dotsOnScreen: %d\n", samples.sample.size(), dotsOnScreen);
+            for ( unsigned int position = unsigned( leftmostPosition ); position < dotsOnScreen && sampleIterator < sampleEnd;
+                  ++position, ++sampleIterator ) {
+                double x = double( MARGIN_LEFT + position * horizontalFactor );
+                double y = *sampleIterator / gain + offset;
+                if ( !scope->histogram ) { // show complete trace
                     graphVoltage.push_back( QVector3D( float( x ), float( y ), 0.0f ) );
+                } else { // histogram replaces trace in rightmost div
+                    int bin = int( round( binsPerDiv * ( y + DIVS_VOLTAGE / 2 ) ) );
+                    if ( bin > 0 && bin < binsPerDiv * DIVS_VOLTAGE ) // if trace is on screen
+                        ++bins[ bin ];                                // count value
+                    if ( x < MARGIN_RIGHT - 1.1 ) {                   // show trace unless in last div + 10% margin
+                        graphVoltage.push_back( QVector3D( float( x ), float( y ), 0.0f ) );
+                    }
                 }
             }
         }
@@ -151,7 +207,7 @@ void GraphGenerator::generateGraphsTYspectrum( PPresult *result ) {
         // Set size directly to avoid reallocations
         graphSpectrum.reserve( neededSize );
 
-        // What's the horizontal distance between sampling points?
+        // The spectrum always uses the normal ten-division frequency grid.
         double horizontalFactor = samples.interval / scope->horizontal.frequencybase;
 
         // Fill vector array

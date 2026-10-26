@@ -13,6 +13,10 @@
 class QLabel;
 class QCheckBox;
 class QComboBox;
+class QSpinBox;
+class QSlider;
+class QPushButton;
+class QToolButton;
 
 class SiSpinBox;
 
@@ -43,6 +47,8 @@ class HorizontalDock : public QDockWidget {
     /// \brief Changes the record length if the new value is supported.
     /// \param recordLength The record length in samples.
     void setRecordLength( unsigned int recordLength );
+    /// \brief Changes the visible window position within a full record.
+    void setRecordPosition( double position );
     /// \brief Changes the format if the new value is supported.
     /// \param format The format for the horizontal axis.
     /// \return Index of format-value, -1 on error.
@@ -70,10 +76,19 @@ class HorizontalDock : public QDockWidget {
     QWidget *dockWidget;            ///< The main widget for the dock window
     QLabel *samplerateLabel;        ///< The label for the samplerate spinbox
     QLabel *timebaseLabel;          ///< The label for the timebase spinbox
+    QLabel *recordLengthLabel;      ///< The label for the record length spinbox
+    QLabel *recordPositionLabel;    ///< The label for the full-record position slider
     QLabel *formatLabel;            ///< The label for the format combobox
     QLabel *calfreqLabel;           ///< The label for the calibration frequency spinbox
+    QCheckBox *fullRecordCheckBox;  ///< Show the whole record, trigger-aligned
     SiSpinBox *samplerateSiSpinBox; ///< Selects the samplerate for aquisitions
     SiSpinBox *timebaseSiSpinBox;   ///< Selects the timebase for voltage graphs
+    QSpinBox *recordLengthSpinBox;  ///< Selects the capture length in samples
+    QSlider *recordPositionSlider;  ///< Selects the visible window in a full record
+    QWidget *recordPositionControlsWidget;
+    QToolButton *recordPositionLeftButton;
+    QToolButton *recordPositionRightButton;
+    QPushButton *goToTriggerButton;
     QComboBox *formatComboBox;      ///< Selects the way the sampled data is
                                     ///  interpreted and shown
     SiSpinBox *calfreqSiSpinBox;    ///< Selects the calibration frequency
@@ -85,16 +100,27 @@ class HorizontalDock : public QDockWidget {
 
     QStringList formatStrings; ///< Strings for the formats
 
+    void updateRecordPositionControls();
+    double recordPositionStep() const;
+
   protected slots:
     void samplerateSelected( double samplerate );
     void timebaseSelected( double timebase );
+    void recordLengthSelected( int recordLength );
+    void recordPositionSelected( int position );
+    void recordPositionLeft();
+    void recordPositionRight();
+    void goToTrigger();
+    void fullRecordSelected( bool enabled );
     void formatSelected( int index );
     void calfreqSelected( double calfreq );
 
   signals:
     void samplerateChanged( double samplerate );            ///< The samplerate has been changed
     void timebaseChanged( double timebase );                ///< The timebase has been changed
+    void fullRecordChanged( bool enabled );                 ///< Full-record display has been enabled/disabled
     void recordLengthChanged( unsigned long recordLength ); ///< The recordd length has been changed
+    void recordPositionChanged( double position );          ///< The visible full-record window has moved
     void formatChanged( Dso::GraphFormat format );          ///< The viewing format has been changed
     void calfreqChanged( double calfreq );                  ///< The timebase has been changed
 };

@@ -16,9 +16,7 @@ static ModelDDS120 modelInstance_120;
 
 static void initSpecifications( Dso::ControlSpecification &specification ) {
     // we drop 2K + 480 sample values due to unreliable start of stream
-    // 20000 samples at 100kS/s = 200 ms gives enough to fill
-    // the screen two times (for pre/post trigger) at 10ms/div = 100ms/screen
-    // SAMPLESIZE defined in hantekdsocontrol.h
+    // Capture depth is configurable from SAMPLESIZE_MIN to SAMPLESIZE (see hantekdsocontrol.h)
     // adapt accordingly in HantekDsoControl::convertRawDataToSamples()
 
     // HW gain, voltage steps in V/screenheight (ranges 20,50,100,200,500,1000,2000,5000 mV)

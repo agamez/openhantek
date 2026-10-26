@@ -71,6 +71,7 @@ DsoWidget::DsoWidget( DsoSettingsScope *scope, DsoSettingsView *view, const Dso:
     swTriggerStatus->setAutoFillBackground( true );
     swTriggerStatus->setVisible( false );
     settingsLayout = new QHBoxLayout();
+    settingsLayout->setSpacing( 8 );
     settingsLayout->addWidget( swTriggerStatus );
     settingsLayout->addWidget( settingsTriggerLabel );
     settingsLayout->addWidget( settingsSamplesOnScreen, 1 );
@@ -498,10 +499,12 @@ void DsoWidget::updateMarkerDetails() {
     if ( m1 > m2 )
         std::swap( m1, m2 );
     double divs = m2 - m1;
+    const double tb = displayTimebase();
+    const double triggerDiv = triggerPositionDiv();
     // t = 0 at trigger position
-    double time0 = ( m1 - DIVS_TIME * scope->trigger.offset ) * scope->horizontal.timebase;
-    double time1 = ( m2 - DIVS_TIME * scope->trigger.offset ) * scope->horizontal.timebase;
-    double time = divs * scope->horizontal.timebase;
+    double time0 = ( m1 - triggerDiv ) * tb;
+    double time1 = ( m2 - triggerDiv ) * tb;
+    double time = divs * tb;
     double freq0 = m1 * scope->horizontal.frequencybase;
     double freq1 = m2 * scope->horizontal.frequencybase;
     double freq = divs * scope->horizontal.frequencybase;
@@ -520,7 +523,7 @@ void DsoWidget::updateMarkerDetails() {
             cursorDataGrid->updateInfo( unsigned( index ), true,
                                         scope->voltage[ channel ].cursor.shape != DsoSettingsScopeCursor::NONE ? tr( "ON" )
                                                                                                                : tr( "OFF" ),
-                                        valueToString( fabs( p1.x() - p0.x() ) * scope->horizontal.timebase, UNIT_SECONDS, 4 ),
+                                        valueToString( fabs( p1.x() - p0.x() ) * tb, UNIT_SECONDS, 4 ),
                                         valueToString( fabs( p1.y() - p0.y() ) * scope->gain( channel ), UNIT_VOLTS, 4 ) );
         } else {
             cursorDataGrid->updateInfo( unsigned( index ), false );
@@ -677,6 +680,9 @@ void DsoWidget::updateSamplerate( double newSamplerate ) {
     dotsOnScreen = unsigned( samplerate * timebase * DIVS_TIME + 0.99 );
     // printf( "DsoWidget::updateSamplerate( %g ) -> %d\n", samplerate, dotsOnScreen );
     settingsSamplerateLabel->setText( valueToString( samplerate, UNIT_SAMPLES, -1 ) + tr( "/s" ) );
+    updateTimebaseLabel();
+    updateTimeDivisions();
+    updateMarkerDetails();
 }
 
 
@@ -686,8 +692,79 @@ void DsoWidget::updateTimebase( double newTimebase ) {
     timebase = newTimebase;
     dotsOnScreen = unsigned( samplerate * timebase * DIVS_TIME + 0.99 );
     // printf( "DsoWidget::updateTimebase( %g ) -> %d\n", timebase, dotsOnScreen );
-    settingsTimebaseLabel->setText( valueToString( timebase, UNIT_SECONDS, -1 ) + tr( "/div" ) );
+    updateTimebaseLabel();
+    updateTimeDivisions();
     updateMarkerDetails();
+}
+
+
+double DsoWidget::displayTimebase() const {
+    return scope->horizontal.timebase;
+}
+
+
+double DsoWidget::timeDivisions() const {
+    if ( !scope->horizontal.fullRecord )
+        return DIVS_TIME;
+    const double nominal = scope->horizontal.timebase;
+    if ( !( nominal > 0.0 ) || samplerate <= 0.0 )
+        return DIVS_TIME;
+    unsigned long size = lastRecordLength;
+    if ( !size )
+        size = scope->horizontal.recordLength;
+    if ( !size )
+        return DIVS_TIME;
+    const double divisions = double( size ) / samplerate / nominal;
+    if ( !std::isfinite( divisions ) || divisions < 1.0 )
+        return DIVS_TIME;
+    return divisions;
+}
+
+
+double DsoWidget::triggerPositionDiv() const {
+    if ( scope->trigger.mode == Dso::TriggerMode::ROLL || !scope->horizontal.fullRecord || !lastRecordLength || !dotsOnScreen ||
+         lastRecordLength <= dotsOnScreen )
+        return DIVS_TIME * scope->trigger.offset;
+
+    const double scale = timeDivisions() / DIVS_TIME;
+    const double visibleSpan = DIVS_TIME / scale;
+    const double windowStart = scope->horizontal.recordPosition * ( DIVS_TIME - visibleSpan );
+    return ( DIVS_TIME / 2.0 - windowStart ) * scale;
+}
+
+
+void DsoWidget::updateRecordPosition( double position ) {
+    scope->horizontal.recordPosition = qBound( 0.0, position, 1.0 );
+    updateTimeDivisions();
+    updateMarkerDetails();
+}
+
+
+void DsoWidget::updateTimebaseLabel() {
+    // The selected timebase stays the reference for one division in every view.
+    settingsTimebaseLabel->setText( valueToString( scope->horizontal.timebase, UNIT_SECONDS, -1 ) + tr( "/div" ) );
+}
+
+
+void DsoWidget::updateTimeDivisions() {
+    // The main scope always keeps its normal ten divisions. Full-record navigation
+    // scales the captured trace behind that grid rather than changing the timebase.
+    mainScope->setTimeDivisions( DIVS_TIME );
+    mainScope->setFullRecordNavigation( timeDivisions(), scope->horizontal.recordPosition );
+    zoomScope->setTimeDivisions( DIVS_TIME );
+    zoomScope->setFullRecordNavigation( DIVS_TIME, 0.0 );
+    updateTriggerPositionSlider();
+}
+
+
+void DsoWidget::updateTriggerPositionSlider() {
+    const double position = triggerPositionDiv() / DIVS_TIME;
+    const QSignalBlocker blocker( mainSliders.triggerPositionSlider );
+    mainSliders.triggerPositionSlider->setValue( 0, qBound( 0.0, position, 1.0 ) );
+    // Keep the trigger marker visible while browsing. When the trigger is outside
+    // the selected window, the clamped position shows which side it lies on.
+    mainSliders.triggerPositionSlider->setIndexVisible( 0, true );
+    mainSliders.triggerPositionSlider->setEnabled( true );
 }
 
 
@@ -790,7 +867,11 @@ void DsoWidget::updateVoltageUsed( ChannelID channel, bool used ) {
 
 /// \brief Change the record length.
 void DsoWidget::updateRecordLength( unsigned long size ) {
-    settingsSamplesOnScreen->setText( valueToString( size, UNIT_SAMPLES, -1 ) + tr( " on screen" ) );
+    lastRecordLength = unsigned( size );
+    settingsSamplesOnScreen->setText( valueToString( size, UNIT_SAMPLES, -1 ) +
+                                      ( scope->horizontal.fullRecord ? tr( " captured" ) : tr( " on screen" ) ) );
+    updateTimebaseLabel();
+    updateTimeDivisions();
 }
 
 
@@ -827,7 +908,8 @@ void DsoWidget::showNew( std::shared_ptr< PPresult > analysedData ) {
     }
     swTriggerStatus->setPalette( triggerLabelPalette );
     swTriggerStatus->setVisible( true );
-    updateRecordLength( dotsOnScreen );
+    updateRecordLength( scope->horizontal.fullRecord ? analysedData->sampleCount() : dotsOnScreen );
+    updateMarkerDetails();
     pulseWidth1 = analysedData.get()->data( 0 )->pulseWidth1;
     pulseWidth2 = analysedData.get()->data( 0 )->pulseWidth2;
     updateTriggerDetails();
@@ -961,6 +1043,16 @@ void DsoWidget::updateTriggerOffset( int index, double value, bool mainView ) {
         return;
 
     if ( mainView ) {
+        if ( scope->horizontal.fullRecord && timeDivisions() > DIVS_TIME ) {
+            const double scale = timeDivisions() / DIVS_TIME;
+            const double visibleSpan = DIVS_TIME / scale;
+            const double position = ( DIVS_TIME / 2.0 - value * DIVS_TIME / scale ) / ( DIVS_TIME - visibleSpan );
+            scope->horizontal.recordPosition = qBound( 0.0, position, 1.0 );
+            updateTimeDivisions();
+            updateMarkerDetails();
+            emit recordPositionChanged( scope->horizontal.recordPosition );
+            return;
+        }
         scope->trigger.offset = value;
         adaptTriggerOffsetSlider();
     } else {

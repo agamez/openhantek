@@ -136,15 +136,24 @@ Dso::ErrorCode HantekDsoControl::setRecordTime( double duration ) {
         srLimit = ( specification->samplerate.single ).max;
     else
         srLimit = ( specification->samplerate.multi ).max;
-    // For now - we go for the SAMPLESIZE (= 20000) size sampling, defined in hantekdsocontrol.h
-    // Find highest samplerate using less equal half of these samples to obtain our duration.
+    // Find the highest samplerate that fits the capture. The triggered modes use half of the
+    // captured samples for the trigger window. Roll uses its smaller free-running buffer unless
+    // Full record is enabled, in which case the complete capture is shown as well. Full record
+    // must not change the samplerate of a triggered mode, otherwise its trigger window would
+    // differ from the normal display.
+    const unsigned requestedSamples = getRequestedSamples();
+    const bool fullRecord = scope && scope->horizontal.fullRecord;
+    const bool rollMode = scope && scope->trigger.mode == Dso::TriggerMode::ROLL;
+    unsigned sampleLimit = requestedSamples / 2;
+    if ( !fullRecord && rollMode )
+        sampleLimit = SAMPLESIZE_ROLL + 256; // allow for the usual block rounding
     uint8_t sampleIndex = 0;
     for ( uint8_t iii = 0; iii < specification->fixedSampleRates.size(); ++iii ) {
         double sRate = specification->fixedSampleRates[ iii ].samplerate;
         // qDebug() << "sampleIndex:" << sampleIndex << "sRate:" << sRate << "sRate*duration:" << sRate * duration;
         // Ensure that at least 1/2 of remaining samples are available for SW trigger algorithm
         // for stability reason avoid the highest sample rate as default
-        if ( sRate < srLimit && sRate * duration <= SAMPLESIZE / 2 ) {
+        if ( sRate < srLimit && sRate * duration <= sampleLimit ) {
             sampleIndex = iii;
         }
     }
@@ -285,6 +294,7 @@ Dso::ErrorCode HantekDsoControl::setTriggerMode( Dso::TriggerMode mode ) {
         return Dso::ErrorCode::CONNECTION;
 
     static Dso::TriggerMode lastMode;
+    const bool modeChanged = mode != controlsettings.trigger.mode;
     controlsettings.trigger.mode = mode;
     enableSampling( true );
     // trigger mode changed NONE <-> !NONE
@@ -292,6 +302,8 @@ Dso::ErrorCode HantekDsoControl::setTriggerMode( Dso::TriggerMode mode ) {
          ( Dso::TriggerMode::ROLL != mode && Dso::TriggerMode::ROLL == lastMode ) ) {
         restartSampling(); // invalidate old samples
         raw.freeRun = Dso::TriggerMode::ROLL == mode;
+        if ( modeChanged && !( scope && scope->horizontal.fullRecord ) )
+            setRecordTime( controlsettings.samplerate.target.duration ); // Roll uses a smaller buffer
     }
     lastMode = mode;
     newTriggerParam = true;
@@ -437,6 +449,13 @@ void HantekDsoControl::enableSampling( bool enabled ) {
 }
 
 
+unsigned HantekDsoControl::getRequestedSamples() const {
+    if ( scope && scope->horizontal.recordLength )
+        return qBound( SAMPLESIZE_MIN, scope->horizontal.recordLength, SAMPLESIZE );
+    return SAMPLESIZE;
+}
+
+
 unsigned HantekDsoControl::getRecordLength() const {
     unsigned rawsize = getSamplesize();
     rawsize *= this->downsamplingNumber;   // take multiple samples for oversampling
@@ -499,7 +518,7 @@ void HantekDsoControl::convertRawDataToSamples() {
     if ( !rawSampleCount )
         return;
     const unsigned rawOversampling = raw.oversampling;
-    const bool freeRunning = rawSampleCount / rawOversampling < SAMPLESIZE; // amount needed for sw trigger
+    const bool freeRunning = controlsettings.trigger.mode == Dso::TriggerMode::ROLL;
     const unsigned sampleCount = freeRunning ? rawSampleCount : netSampleCount( rawSampleCount );
     const unsigned resultSamples = freeRunning ? sampleCount / rawOversampling - 1 : sampleCount / rawOversampling;
     const unsigned skipSamples = rawSampleCount - sampleCount;
@@ -615,8 +634,8 @@ unsigned HantekDsoControl::searchTriggerPoint( Dso::Slope dsoSlope, unsigned int
         if ( slope * samples[ i ] >= slope * level && slope * prev < slope * level ) { // trigger condition met
             // check for the next few SampleSet samples, if they are also above/below the trigger value
             unsigned int before = 0;
-            for ( unsigned int k = i - 1; k >= i - swTriggerSampleSet && k > 0; k-- ) {
-                if ( slope * samples[ k ] < slope * level )
+            for ( unsigned int k = 0; k < swTriggerSampleSet && k < i; ++k ) {
+                if ( slope * samples[ i - 1 - k ] < slope * level )
                     before++;
             }
             unsigned int after = 0;

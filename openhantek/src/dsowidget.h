@@ -51,6 +51,12 @@ class DsoWidget : public QWidget {
     void adaptTriggerOffsetSlider();
     void setMeasurementVisible( ChannelID channel );
     void updateMarkerDetails();
+    double displayTimebase() const;
+    double timeDivisions() const;
+    double triggerPositionDiv() const;
+    void updateTimebaseLabel();
+    void updateTimeDivisions();
+    void updateTriggerPositionSlider();
     void updateSpectrumDetails( ChannelID channel );
     void updateTriggerDetails();
     void updateVoltageDetails( ChannelID channel );
@@ -104,6 +110,7 @@ class DsoWidget : public QWidget {
     double samplerate;
     double timebase;
     unsigned int dotsOnScreen;
+    unsigned int lastRecordLength = 0;
     double pulseWidth1 = 0.0;
     double pulseWidth2 = 0.0;
     void setColors();
@@ -114,6 +121,7 @@ class DsoWidget : public QWidget {
     void updateFrequencybase( double frequencybase );
     void updateSamplerate( double samplerate );
     void updateTimebase( double timebase );
+    void updateRecordPosition( double position );
 
     // Trigger
     void updateTriggerMode();
@@ -151,5 +159,6 @@ class DsoWidget : public QWidget {
     // Sliders
     void voltageOffsetChanged( ChannelID channel, double value ); ///< A graph offset has been changed
     void triggerPositionChanged( double value );                  ///< The pretrigger has been changed
+    void recordPositionChanged( double position );
     void triggerLevelChanged( ChannelID channel, double value );  ///< A trigger level has been changed
 };

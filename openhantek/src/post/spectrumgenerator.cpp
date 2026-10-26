@@ -47,19 +47,23 @@ void SpectrumGenerator::process( PPresult *result ) {
         }
 
         // Determine the visible part of the trace. This is also used for Vpp.
-        const double horizontalFactor = channelData->voltage.interval / scope->horizontal.timebase;
-        const unsigned int dotsOnScreen = unsigned( ceil( DIVS_TIME / horizontalFactor ) );
-        const unsigned int preTrigSamples = unsigned( scope->trigger.offset * dotsOnScreen );
-        int left = int( result->triggeredPosition ) - int( preTrigSamples ); // 1st sample to show
-        int right = left + int( dotsOnScreen );                              // last sample to show
-        if ( left < 0 )                                                      // trig pos or time/div was increased
-            left = 0;                                                        // show as much as we have on left side
-        if ( left >= int( sampleCount ) )
-            left = int( sampleCount ) - 1;
-        if ( right >= int( sampleCount ) )
-            right = int( sampleCount ) - 1;
-        if ( right < left )
-            right = left;
+        int left = 0;
+        int right = int( sampleCount ) - 1;
+        if ( !scope->horizontal.fullRecord ) {
+            const double horizontalFactor = channelData->voltage.interval / scope->horizontal.timebase;
+            const unsigned int dotsOnScreen = unsigned( ceil( DIVS_TIME / horizontalFactor ) );
+            const unsigned int preTrigSamples = unsigned( scope->trigger.offset * dotsOnScreen );
+            left = int( result->triggeredPosition ) - int( preTrigSamples ); // 1st sample to show
+            right = left + int( dotsOnScreen );                              // last sample to show
+            if ( left < 0 )                                                  // trig pos or time/div was increased
+                left = 0;                                                    // show as much as we have on left side
+            if ( left >= int( sampleCount ) )
+                left = int( sampleCount ) - 1;
+            if ( right >= int( sampleCount ) )
+                right = int( sampleCount ) - 1;
+            if ( right < left )
+                right = left;
+        }
 
         // Select the samples used for the DFT.
         unsigned int fftStart = 0;

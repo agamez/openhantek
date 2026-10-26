@@ -25,6 +25,8 @@ struct DsoSettingsScopeHorizontal {
     DsoSettingsScopeCursor cursor;
 
     unsigned int recordLength = 0; ///< Sample count
+    bool fullRecord = false;       ///< Capture a complete record for navigation
+    double recordPosition = 0.5;   ///< Position of the visible window within a full record
     double timebase = 1e-3;        ///< Timebase in s/div
     double maxTimebase = 1;        ///< Allow very slow timebases 0.1 ... 10.0 s/div
 #ifdef Q_PROCESSOR_ARM

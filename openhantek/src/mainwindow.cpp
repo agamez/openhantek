@@ -179,6 +179,20 @@ MainWindow::MainWindow( HantekDsoControl *dsoControl, DsoSettings *settings, Exp
         dsoControl->setRecordTime( dsoSettings->scope.horizontal.timebase * DIVS_TIME );
         this->dsoWidget->updateTimebase( dsoSettings->scope.horizontal.timebase );
     } );
+    connect( horizontalDock, &HorizontalDock::fullRecordChanged, [dsoControl, this]( bool ) {
+        dsoControl->setRecordTime( dsoSettings->scope.horizontal.timebase * DIVS_TIME );
+        this->dsoWidget->updateTimebase( dsoSettings->scope.horizontal.timebase );
+        if ( dsoSettings->scope.horizontal.fullRecord )
+            this->dsoWidget->updateRecordLength( dsoSettings->scope.horizontal.recordLength );
+    } );
+    connect( horizontalDock, &HorizontalDock::recordLengthChanged, [dsoControl, this]( unsigned long ) {
+        dsoControl->setRecordTime( dsoSettings->scope.horizontal.timebase * DIVS_TIME );
+        this->dsoWidget->updateTimebase( dsoSettings->scope.horizontal.timebase );
+        if ( dsoSettings->scope.horizontal.fullRecord )
+            this->dsoWidget->updateRecordLength( dsoSettings->scope.horizontal.recordLength );
+    } );
+    connect( horizontalDock, &HorizontalDock::recordPositionChanged, dsoWidget, &DsoWidget::updateRecordPosition );
+    connect( dsoWidget, &DsoWidget::recordPositionChanged, horizontalDock, &HorizontalDock::setRecordPosition );
     connect( spectrumDock, &SpectrumDock::frequencybaseChanged,
              [this]( double frequencybase ) { this->dsoWidget->updateFrequencybase( frequencybase ); } );
     connect( dsoControl, &HantekDsoControl::samplerateChanged, [this, horizontalDock, spectrumDock]( double samplerate ) {
@@ -194,6 +208,9 @@ MainWindow::MainWindow( HantekDsoControl *dsoControl, DsoSettings *settings, Exp
     connect( horizontalDock, &HorizontalDock::formatChanged,
              [this]( Dso::GraphFormat format ) { ui->actionHistogram->setEnabled( format == Dso::GraphFormat::TY ); } );
 
+    connect( triggerDock, &TriggerDock::modeChanged, [this, horizontalDock]( Dso::TriggerMode ) {
+        horizontalDock->calculateSamplerateSteps( dsoSettings->scope.horizontal.timebase );
+    } );
     connect( triggerDock, &TriggerDock::modeChanged, dsoControl, &HantekDsoControl::setTriggerMode );
     connect( triggerDock, &TriggerDock::modeChanged, dsoWidget, &DsoWidget::updateTriggerMode );
     connect( triggerDock, &TriggerDock::singleChanged, dsoControl, &HantekDsoControl::setTriggerSingle );

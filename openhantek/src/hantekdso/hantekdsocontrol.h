@@ -77,13 +77,16 @@ class HantekDsoControl : public QObject {
 
     double getSamplerate() const { return controlsettings.samplerate.current; }
 
-    static const unsigned SAMPLESIZE = 20000;
+    static const unsigned SAMPLESIZE = 1000000;
     static const unsigned SAMPLESIZE_ROLL = 39 * 256;
+    static const unsigned SAMPLESIZE_MIN = 2000;
     unsigned getSamplesize() const {
+        if ( scope && scope->horizontal.fullRecord )
+            return getRequestedSamples();
         if ( controlsettings.trigger.mode == Dso::TriggerMode::ROLL )
             return SAMPLESIZE_ROLL;
         else
-            return SAMPLESIZE;
+            return getRequestedSamples();
     }
 
     bool isSampling() const { return sampling; }
@@ -125,6 +128,7 @@ class HantekDsoControl : public QObject {
     void setSingleChannel( bool single ) { singleChannel = single; }
     bool isSingleChannel() const { return singleChannel; }
     bool triggerModeNONE() { return controlsettings.trigger.mode == Dso::TriggerMode::ROLL; }
+    unsigned getRequestedSamples() const;
     unsigned getRecordLength() const;
     void setDownsampling( unsigned downsampling ) { downsamplingNumber = downsampling; }
     Dso::ErrorCode retrieveChannelLevelData();
